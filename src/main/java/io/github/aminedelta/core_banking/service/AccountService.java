@@ -27,17 +27,11 @@ public class AccountService {
     public BigDecimal getBalance(UUID accountId) {
         if (!accountRepository.existsById(accountId)) {
             throw new IllegalArgumentException("Account not found with ID: " + accountId);
-        }
-        // Use the optimized repository method to fetch entries for the specific account
+        }// Use the optimized repository method to fetch entries for the specific account
         List<LedgerEntry> entries = ledgerEntryRepository.findByAccountId(accountId);
         BigDecimal balance = BigDecimal.ZERO;
         for (LedgerEntry entry : entries) {
-            if (entry.getType() == EntryType.CREDIT) {
-                balance = balance.add(entry.getAmount());
-            } else if (entry.getType() == EntryType.DEBIT) {
-                // Since debits are already stored as negative amounts, we add them to reduce the balance
-                balance = balance.add(entry.getAmount());
-            }
+            balance = balance.add(entry.getAmount());
         }
         return balance;
     }
