@@ -8,14 +8,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;
-
+import io.github.aminedelta.core_banking.exception.InsufficientFundsException;
 @Service
 @RequiredArgsConstructor
 public class TransferService {
     private final AccountRepository accountRepository;
     private final TransactionHeaderRepository transactionHeaderRepository;
     private final LedgerEntryRepository ledgerRepository;
-
+    private final AccountService accountService;
     @Transactional
     public void transfer(UUID fromAccountId, UUID toAccountId, BigDecimal amount, String description) {
 
@@ -26,11 +26,14 @@ public class TransferService {
             throw new IllegalArgumentException("Cannot transfer to the same account");
         }
 
-        if (!accountRepository.existsById(fromAccountId)) {
-            throw new IllegalArgumentException("From account not found");
-        }
-        if (!accountRepository.existsById(toAccountId)) {
-            throw new IllegalArgumentException("To account not found");
+        accountRepository.findAndLockById(fromAccountId)
+            .orElseThrow(() -> new IllegalArgumentException("From account not found"));
+            
+        accountRepository.findAndLockById(toAccountId)
+            .orElseThrow(() -> new IllegalArgumentException("To account not found"));
+        
+        if (accountService.getBalance(fromAccountId).compareTo(amount) < 0) {
+            throw new InsufficientFundsException("Insufficient funds in the from account");
         }
 
         TransactionHeader savedHeader = transactionHeaderRepository.save(new TransactionHeader(description));

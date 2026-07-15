@@ -1,5 +1,6 @@
 package io.github.aminedelta.core_banking.controller;
 
+import io.github.aminedelta.core_banking.exception.InsufficientFundsException;
 import io.github.aminedelta.core_banking.dto.TransferRequest;
 import io.github.aminedelta.core_banking.service.TransferService;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +23,7 @@ public class TransferController {
                 request.getDescription()
             );
             return ResponseEntity.ok("Transfer completed successfully");
-        } catch (IllegalArgumentException e) {
+        } catch (InsufficientFundsException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(500).body("An unexpected error occurred: " + e.getMessage());
