@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.Optional;
 
