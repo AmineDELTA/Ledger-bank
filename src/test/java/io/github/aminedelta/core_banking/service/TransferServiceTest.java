@@ -103,7 +103,7 @@ class TransferServiceTest {
                     raceGate.await();
                     transferService.transfer(accountAId, accountBId, new BigDecimal("10.00"), "concurrent transfer");
                 } catch (Exception ignored) {
-                    // lock timeout or rollback may occur
+                    //lock timeout or rollback may occur
                 } finally {
                     finishLine.countDown();
                 }
