@@ -12,5 +12,6 @@ public class AccountRequest {
     public AccountRequest(String accountNumber, String holderName) {
         this.accountNumber = accountNumber;
         this.holderName = holderName;
+        
     }
 }

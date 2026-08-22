@@ -63,7 +63,7 @@ class TransferServiceTest {
     @Test
     @DisplayName("Single transfer updates balances correctly")
     void testSuccessfulTransfer() {
-        transferService.transfer(accountAId, accountBId, new BigDecimal("200.00"), "test transfer");
+        transferService.transfer(accountAId, accountBId, new BigDecimal("200.00"), "test transfer", null);
 
         assertEquals(0, new BigDecimal("800.00").compareTo(accountService.getBalance(accountAId)));
         assertEquals(0, new BigDecimal("1200.00").compareTo(accountService.getBalance(accountBId)));
@@ -73,7 +73,7 @@ class TransferServiceTest {
     @DisplayName("Insufficient funds throws and does not change balances")
     void testInsufficientFunds() {
         assertThrows(InsufficientFundsException.class, () ->
-                transferService.transfer(accountAId, accountBId, new BigDecimal("1500.00"), "test transfer")
+                transferService.transfer(accountAId, accountBId, new BigDecimal("1500.00"), "test transfer", null)
         );
 
         assertEquals(0, new BigDecimal("1000.00").compareTo(accountService.getBalance(accountAId)));
@@ -84,7 +84,7 @@ class TransferServiceTest {
     @DisplayName("Invalid input rejects zero or negative amounts")
     void testNegativeOrZeroAmount() {
         assertThrows(IllegalArgumentException.class, () ->
-                transferService.transfer(accountAId, accountBId, new BigDecimal("-50.00"), "invalid transfer")
+                transferService.transfer(accountAId, accountBId, new BigDecimal("-50.00"), "invalid transfer", null)
         );
     }
 
@@ -101,7 +101,7 @@ class TransferServiceTest {
             executor.submit(() -> {
                 try {
                     raceGate.await();
-                    transferService.transfer(accountAId, accountBId, new BigDecimal("10.00"), "concurrent transfer");
+                    transferService.transfer(accountAId, accountBId, new BigDecimal("10.00"), "concurrent transfer", null);
                 } catch (Exception ignored) {
                     //lock timeout or rollback may occur
                 } finally {

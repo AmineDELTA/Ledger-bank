@@ -8,6 +8,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 
 import java.util.UUID;
+import java.math.BigDecimal;
 
 @Getter
 @Entity
@@ -24,11 +25,22 @@ public class Account {
     @Column(nullable = false)
     private String holderName;
 
+    @Column(nullable = false)
+    private BigDecimal currentBalance = BigDecimal.ZERO;
+
     protected Account() {
     }
 
     public Account(String accountNumber, String holderName) {
         this.accountNumber = accountNumber;
         this.holderName = holderName;
+    }
+
+    public BigDecimal getBalance() {
+        return currentBalance;
+    }
+
+    public void setBalance(BigDecimal balance) {
+        this.currentBalance = balance;
     }
 }

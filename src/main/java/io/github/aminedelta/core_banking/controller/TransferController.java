@@ -5,12 +5,11 @@ import io.github.aminedelta.core_banking.dto.TransferRequest;
 import io.github.aminedelta.core_banking.exception.InsufficientFundsException;
 import io.github.aminedelta.core_banking.repository.IdempotentRequestRepository;
 import io.github.aminedelta.core_banking.service.TransferService;
+import io.github.aminedelta.core_banking.dto.TransferResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/transfers")
@@ -21,57 +20,41 @@ public class TransferController {
     private final IdempotentRequestRepository idempotencyRepository;
 
     @PostMapping
-    public ResponseEntity<String> executeTransfer(
+    public ResponseEntity<?> executeTransfer(
             @RequestBody TransferRequest request, 
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 
-        //intercept duplicate requests immediately using database constraints
-        if (idempotencyKey != null) {
-            try {
-                //save an empty pending record. This locks the key across all concurrent threads
-                IdempotentRequest initialRequest = new IdempotentRequest(idempotencyKey, null, null);
-                idempotencyRepository.saveAndFlush(initialRequest);
-            } catch (DataIntegrityViolationException e) {
-                //another thread already saved this key
-                Optional<IdempotentRequest> existingRequest = idempotencyRepository.findById(idempotencyKey);
-                
-                if (existingRequest.isPresent() && existingRequest.get().getResponseStatusCode() != null) {
-                    //the request finished. Return the exact same response
-                    return ResponseEntity
-                            .status(existingRequest.get().getResponseStatusCode())
-                            .body(existingRequest.get().getResponseBody());
-                }
-                //original request is still processing right now
-                return ResponseEntity.status(409).body("Request is currently being processed.");
-            }
-        }
-
-        ResponseEntity<String> response;
-
         try {
-            transferService.transfer(
+            // 1. Call the service (this goes inside the try block)
+            TransferResult result = transferService.transfer(
                 request.getFromAccountId(),
                 request.getToAccountId(),
                 request.getAmount(),
-                request.getDescription()
+                request.getDescription(),
+                idempotencyKey
             );
-            response = ResponseEntity.ok("Transfer completed successfully");
+            
+            // 2. Return the successful result
+            return ResponseEntity.ok(result);
+
+        } catch (DataIntegrityViolationException e) {
+            // EDGE CASE: Thread B hit the controller at the exact millisecond as Thread A.
+            // Thread A won, committed the transaction, and saved the key. 
+            // Thread B's transaction blew up on the Unique Primary Key constraint and rolled back safely.
+            IdempotentRequest cachedRequest = idempotencyRepository.findById(idempotencyKey)
+                    .orElseThrow(() -> new IllegalStateException("Key should exist here"));
+            
+            // We just fetch Thread A's success result and give it to Thread B!
+            return ResponseEntity.status(cachedRequest.getResponseStatusCode())
+                                 .body(cachedRequest.getResponseBody());
+
         } catch (InsufficientFundsException | IllegalArgumentException e) {
-            response = ResponseEntity.badRequest().body(e.getMessage());
+            // Note: Because these throw an exception, the @Transactional rolls back. 
+            // The idempotency key is deliberately NOT saved, allowing the user to deposit funds and retry.
+            return ResponseEntity.badRequest().body(e.getMessage());
+            
         } catch (Exception e) {
-            response = ResponseEntity.status(500).body("An unexpected error occurred: " + e.getMessage());
+            return ResponseEntity.status(500).body("An unexpected error occurred: " + e.getMessage());
         }
-
-        //save final state so future retries get the identical result
-        if (idempotencyKey != null) {
-            IdempotentRequest completedRequest = new IdempotentRequest(
-                    idempotencyKey, 
-                    response.getStatusCode().value(), 
-                    response.getBody()
-            );
-            idempotencyRepository.save(completedRequest);
-        }
-
-        return response;
     }
 }
