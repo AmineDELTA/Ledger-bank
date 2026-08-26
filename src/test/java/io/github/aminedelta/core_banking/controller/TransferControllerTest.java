@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,8 +30,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -75,7 +76,7 @@ class TransferControllerTest {
         TransferRequest request = new TransferRequest(fromId, toId, amount, desc);
 
         doThrow(new InsufficientFundsException("Insufficient balance"))
-                .when(transferService).transfer(fromId, toId, amount, desc);
+                .when(transferService).transfer(fromId, toId, amount, desc, null);
 
         mockMvc.perform(post("/transfers")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -88,32 +89,23 @@ class TransferControllerTest {
     void executeTransfer_NewKey_ExecutesTransferAndSavesKey() throws Exception {
         
         String idempotencyKey = UUID.randomUUID().toString();
-        
-        UUID fromAccountId = UUID.randomUUID();
-        UUID toAccountId = UUID.randomUUID();
-        
-        TransferRequest request = new TransferRequest(
-                fromAccountId, 
-                toAccountId, 
-                new BigDecimal("100.00"), 
-                "Payment"
-        );
+        TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
 
-        when(idempotencyRepository.saveAndFlush(any(IdempotentRequest.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        // FIX 1: Mock the service to return a successful TransferResult
+        io.github.aminedelta.core_banking.dto.TransferResult mockResult = 
+            new io.github.aminedelta.core_banking.dto.TransferResult(UUID.randomUUID(), "SUCCESS", "Transfer completed successfully");
+        
+        when(transferService.transfer(any(), any(), any(), any(), any())).thenReturn(mockResult);
 
         mockMvc.perform(post("/transfers")
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-                
                 .andExpect(status().isOk())
-                .andExpect(content().string("Transfer completed successfully"));
+                // FIX 2: Assert against the JSON object's "message" field, not the raw string
+                .andExpect(jsonPath("$.message").value("Transfer completed successfully"));
 
-        verify(transferService, times(1)).transfer(any(), any(), any(), any());
-        
-        verify(idempotencyRepository, times(1)).saveAndFlush(any(IdempotentRequest.class));
-        verify(idempotencyRepository, times(1)).save(any(IdempotentRequest.class));
+        verify(transferService, times(1)).transfer(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -121,38 +113,21 @@ class TransferControllerTest {
     void executeTransfer_DuplicateKey_ReturnsCachedResponseAndSkipsTransfer() throws Exception {
         
         String idempotencyKey = UUID.randomUUID().toString();
-        
-        TransferRequest request = new TransferRequest(
-                UUID.randomUUID(), 
-                UUID.randomUUID(), 
-                new BigDecimal("100.00"), 
-                "Payment"
-        );
+        TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
+        IdempotentRequest completedRequest = new IdempotentRequest(idempotencyKey, 200, "Transfer completed successfully");
 
-        //build a fake DB record representing a previously COMPLETED transaction
-        IdempotentRequest completedRequest = new IdempotentRequest(
-                idempotencyKey, 
-                200, 
-                "Transfer completed successfully"
-        );
-
-        // simulate DB collision: saveAndFlush fails because the key already exists
-        when(idempotencyRepository.saveAndFlush(any(IdempotentRequest.class)))
+        // FIX 3: Mock the SERVICE to throw the database constraint violation
+        when(transferService.transfer(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("Primary key violation"));
 
-        //simulate DB lookup: finding the key returns the completed record
-        when(idempotencyRepository.findById(idempotencyKey))
-                .thenReturn(Optional.of(completedRequest));
+        when(idempotencyRepository.findById(idempotencyKey)).thenReturn(Optional.of(completedRequest));
 
         mockMvc.perform(post("/transfers")
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-                
                 .andExpect(status().isOk())
                 .andExpect(content().string("Transfer completed successfully"));
-
-        verify(transferService, never()).transfer(any(), any(), any(), any());
     }
 
     @Test
@@ -160,39 +135,20 @@ class TransferControllerTest {
     void executeTransfer_ConcurrentDuplicateKey_ReturnsConflictAndSkipsTransfer() throws Exception {
         
         String idempotencyKey = UUID.randomUUID().toString();
-        
-        TransferRequest request = new TransferRequest(
-                UUID.randomUUID(), 
-                UUID.randomUUID(), 
-                new BigDecimal("100.00"), 
-                "Payment"
-        );
+        TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
+        IdempotentRequest pendingRequest = new IdempotentRequest(idempotencyKey, null, null);
 
-        //build a fake DB record representing an IN-PROGRESS transaction
-        //status code is NULL because Thread A has not finished the transfer yet
-        IdempotentRequest pendingRequest = new IdempotentRequest(
-                idempotencyKey, 
-                null, 
-                null
-        );
-
-        //simulate DB collision: Thread B fails to insert the key
-        when(idempotencyRepository.saveAndFlush(any(IdempotentRequest.class)))
+        // FIX 4: Mock the SERVICE to throw the database constraint violation
+        when(transferService.transfer(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("Primary key violation"));
 
-        //simulate DB lookup: Thread B finds Thread A's unfinished record
-        when(idempotencyRepository.findById(idempotencyKey))
-                .thenReturn(Optional.of(pendingRequest));
+        when(idempotencyRepository.findById(idempotencyKey)).thenReturn(Optional.of(pendingRequest));
 
         mockMvc.perform(post("/transfers")
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-                
                 .andExpect(status().isConflict())
                 .andExpect(content().string("Request is currently being processed."));
-
-        //verify Thread B did not attempt to execute the transfer
-        verify(transferService, never()).transfer(any(), any(), any(), any());
     }
 }

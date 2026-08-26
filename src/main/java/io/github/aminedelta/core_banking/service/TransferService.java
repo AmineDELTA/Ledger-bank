@@ -37,13 +37,12 @@ public class TransferService {
 
         if (idempotencyKey != null) {
             Optional<IdempotentRequest> existingRequest = idempotencyRepository.findById(idempotencyKey);
-            if (existingRequest.isPresent()) {
-                return new TransferResult(
-                    UUID.fromString(existingRequest.get().getResponseBody()), 
-                    "SUCCESS", 
-                    "Duplicate request: returning previous result"
-                );
-            }
+            try {
+                    // Deserialize the JSON string back into the TransferResult object
+                    return objectMapper.readValue(existingRequest.get().getResponseBody(), TransferResult.class);
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException("Failed to deserialize previous transfer result", e);
+                }
         }
 
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -69,7 +68,7 @@ public class TransferService {
         Account toAccount = (firstLockAccount.getId().equals(toAccountId)) ? firstLockAccount : secondLockAccount;
 
         // 2. Check balance against locked state
-        if (accountService.getBalance(fromAccountId).compareTo(amount) < 0) {
+        if (fromAccount.getBalance().compareTo(amount) < 0) {
             throw new InsufficientFundsException("Insufficient funds in the from account");
         }
 

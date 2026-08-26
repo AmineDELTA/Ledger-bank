@@ -127,5 +127,9 @@ class TransferServiceTest {
         entry.setType(EntryType.CREDIT);
         entry.setAmount(amount);
         ledgerEntryRepository.save(entry);
+
+        Account account = accountRepository.findById(accountId).orElseThrow();
+        account.setBalance(amount);
+        accountRepository.save(account);
     }
 }

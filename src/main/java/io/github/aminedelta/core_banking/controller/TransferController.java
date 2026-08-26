@@ -44,6 +44,9 @@ public class TransferController {
             IdempotentRequest cachedRequest = idempotencyRepository.findById(idempotencyKey)
                     .orElseThrow(() -> new IllegalStateException("Key should exist here"));
             
+            if (cachedRequest.getResponseStatusCode() == null) {
+                return ResponseEntity.status(409).body("Request is currently being processed.");
+            }
             // We just fetch Thread A's success result and give it to Thread B!
             return ResponseEntity.status(cachedRequest.getResponseStatusCode())
                                  .body(cachedRequest.getResponseBody());
