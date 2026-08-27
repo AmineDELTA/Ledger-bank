@@ -29,7 +29,6 @@ public class TransferService {
     private final AccountRepository accountRepository;
     private final TransactionHeaderRepository transactionHeaderRepository;
     private final LedgerEntryRepository ledgerRepository;
-    private final AccountService accountService;
     private final IdempotentRequestRepository idempotencyRepository;
     private final ObjectMapper objectMapper;
     @Transactional
@@ -37,12 +36,15 @@ public class TransferService {
 
         if (idempotencyKey != null) {
             Optional<IdempotentRequest> existingRequest = idempotencyRepository.findById(idempotencyKey);
-            try {
-                    // Deserialize the JSON string back into the TransferResult object
+            
+            // ONLY return early if we actually found a previous request
+            if (existingRequest.isPresent()) {
+                try {
                     return objectMapper.readValue(existingRequest.get().getResponseBody(), TransferResult.class);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException("Failed to deserialize previous transfer result", e);
                 }
+            }
         }
 
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
