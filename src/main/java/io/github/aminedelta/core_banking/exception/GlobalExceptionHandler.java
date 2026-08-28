@@ -1,5 +1,6 @@
 package io.github.aminedelta.core_banking.exception;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import io.github.aminedelta.core_banking.dto.ErrorResponse;
 
 @ControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
     
     @ExceptionHandler(InsufficientFundsException.class)
@@ -20,7 +22,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        ErrorResponse errorResponse = new ErrorResponse("An unexpected error occurred", "INTERNAL_SERVER_ERROR", Instant.now().toString(), HttpStatus.INTERNAL_SERVER_ERROR.value());
+        log.error("Unhandled exception caught by global handler: ", ex);
+        ErrorResponse errorResponse = new ErrorResponse(ex.getMessage(), "INTERNAL_SERVER_ERROR", Instant.now().toString(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
 }

@@ -10,9 +10,11 @@ import io.github.aminedelta.core_banking.repository.AccountRepository;
 import io.github.aminedelta.core_banking.repository.LedgerEntryRepository;
 import io.github.aminedelta.core_banking.repository.TransactionHeaderRepository;
 import io.github.aminedelta.core_banking.repository.IdempotentRequestRepository;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.github.aminedelta.core_banking.aop.AuditLog;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +33,8 @@ public class TransferService {
     private final LedgerEntryRepository ledgerRepository;
     private final IdempotentRequestRepository idempotencyRepository;
     private final ObjectMapper objectMapper;
+
+    @AuditLog
     @Transactional
     public TransferResult transfer(UUID fromAccountId, UUID toAccountId, BigDecimal amount, String description, String idempotencyKey) {
 
