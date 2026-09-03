@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/accounts")
@@ -18,6 +19,12 @@ import java.util.UUID;
 public class AccountController {
 
     private final AccountService accountService;
+
+    @GetMapping
+    public ResponseEntity<List<AccountResponse>> getAllAccounts() {
+        List<AccountResponse> accounts = accountService.getAllAccounts();
+        return ResponseEntity.ok(accounts);
+    }
 
     @GetMapping("/{accountId}/balance")
     public ResponseEntity<BigDecimal> getBalance(@PathVariable UUID accountId) {

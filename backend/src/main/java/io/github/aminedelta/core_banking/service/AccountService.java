@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -58,5 +59,17 @@ public class AccountService {
             savedAccount.getHolderName(), 
             savedAccount.getBalance()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<AccountResponse> getAllAccounts() {
+        return accountRepository.findAll().stream()
+                .map(account -> new AccountResponse(
+                        account.getId(),
+                        account.getAccountNumber(),
+                        account.getHolderName(),
+                        account.getBalance()
+                ))
+                .toList();
     }
 }

@@ -9,3 +9,6 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 logs/
 .vscode/
+
+# Personal local development notes
+LOCAL_RUNBOOK.md
