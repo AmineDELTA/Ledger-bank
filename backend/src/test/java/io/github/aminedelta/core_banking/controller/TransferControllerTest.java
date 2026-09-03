@@ -6,6 +6,7 @@ import io.github.aminedelta.core_banking.domain.IdempotentRequest;
 import io.github.aminedelta.core_banking.dto.TransferRequest;
 import io.github.aminedelta.core_banking.exception.InsufficientFundsException;
 import io.github.aminedelta.core_banking.service.TransferService;
+import io.github.aminedelta.core_banking.service.IdempotencyService;
 import io.github.aminedelta.core_banking.repository.IdempotentRequestRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ class TransferControllerTest {
     @MockBean
     private IdempotentRequestRepository idempotencyRepository;
 
+    @MockBean
+    private IdempotencyService idempotencyService;
+
     @Test
     @DisplayName("POST /api/transfers - Valid request returns 200 OK")
     void testSuccessfulTransferEndpoint() throws Exception {
@@ -60,6 +64,7 @@ class TransferControllerTest {
         );
 
         mockMvc.perform(post("/transfers")
+            .header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
@@ -75,10 +80,13 @@ class TransferControllerTest {
 
         TransferRequest request = new TransferRequest(fromId, toId, amount, desc);
 
+        String idempotencyKey = UUID.randomUUID().toString();
+        when(idempotencyService.tryLock(idempotencyKey)).thenReturn(true);
         doThrow(new InsufficientFundsException("Insufficient balance"))
-                .when(transferService).transfer(fromId, toId, amount, desc, null);
+            .when(transferService).transfer(fromId, toId, amount, desc, idempotencyKey);
 
         mockMvc.perform(post("/transfers")
+            .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -96,6 +104,7 @@ class TransferControllerTest {
             new io.github.aminedelta.core_banking.dto.TransferResult(UUID.randomUUID(), "SUCCESS", "Transfer completed successfully");
         
         when(transferService.transfer(any(), any(), any(), any(), any())).thenReturn(mockResult);
+        when(idempotencyService.tryLock(idempotencyKey)).thenReturn(true);
 
         mockMvc.perform(post("/transfers")
                 .header("Idempotency-Key", idempotencyKey)
@@ -119,6 +128,8 @@ class TransferControllerTest {
         // FIX 3: Mock the SERVICE to throw the database constraint violation
         when(transferService.transfer(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("Primary key violation"));
+        when(idempotencyService.tryLock(idempotencyKey)).thenReturn(false);
+        when(idempotencyService.getCachedReceipt(idempotencyKey)).thenReturn(null);
 
         when(idempotencyRepository.findById(idempotencyKey)).thenReturn(Optional.of(completedRequest));
 
@@ -141,6 +152,8 @@ class TransferControllerTest {
         // FIX 4: Mock the SERVICE to throw the database constraint violation
         when(transferService.transfer(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("Primary key violation"));
+        when(idempotencyService.tryLock(idempotencyKey)).thenReturn(false);
+        when(idempotencyService.getCachedReceipt(idempotencyKey)).thenReturn(null);
 
         when(idempotencyRepository.findById(idempotencyKey)).thenReturn(Optional.of(pendingRequest));
 
@@ -150,5 +163,45 @@ class TransferControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andExpect(content().string("Request is currently being processed."));
+    }
+
+    @Test
+    @DisplayName("POST /transfers - Redis receipt returns structured JSON")
+    void executeTransfer_RedisReceiptReturnsTransferResult() throws Exception {
+        String idempotencyKey = UUID.randomUUID().toString();
+        TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
+        String receipt = "{\"transactionId\":\"" + UUID.randomUUID() + "\",\"status\":\"SUCCESS\",\"message\":\"Transfer completed successfully\"}";
+
+        when(idempotencyService.tryLock(idempotencyKey)).thenReturn(false);
+        when(idempotencyService.getCachedReceipt(idempotencyKey)).thenReturn(receipt);
+
+        mockMvc.perform(post("/transfers")
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.message").value("Transfer completed successfully"));
+
+        verify(transferService, times(0)).transfer(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /transfers - Redis pending key returns 409 Conflict")
+    void executeTransfer_RedisPendingReturnsConflict() throws Exception {
+        String idempotencyKey = UUID.randomUUID().toString();
+        TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
+
+        when(idempotencyService.tryLock(idempotencyKey)).thenReturn(false);
+        when(idempotencyService.getCachedReceipt(idempotencyKey)).thenReturn("PENDING");
+
+        mockMvc.perform(post("/transfers")
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(content().string("Request is currently being processed."));
+
+        verify(transferService, times(0)).transfer(any(), any(), any(), any(), any());
     }
 }

@@ -18,7 +18,7 @@ function App() {
   // Helper function to fetch account data
   const fetchAccounts = async () => {
     try {
-      // Replace with your actual ACC-001 UUID
+      // Replace with your actual ACC-001 UUID 
       const response = await axios.get(`http://localhost:8080/accounts`);
       setAccounts(response.data);
 

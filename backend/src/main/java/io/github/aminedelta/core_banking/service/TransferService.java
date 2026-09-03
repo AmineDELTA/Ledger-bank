@@ -14,6 +14,8 @@ import io.github.aminedelta.core_banking.repository.IdempotentRequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import io.github.aminedelta.core_banking.aop.AuditLog;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -32,11 +34,13 @@ public class TransferService {
     private final TransactionHeaderRepository transactionHeaderRepository;
     private final LedgerEntryRepository ledgerRepository;
     private final IdempotentRequestRepository idempotencyRepository;
+    private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
 
     @AuditLog
     @Transactional
-    public TransferResult transfer(UUID fromAccountId, UUID toAccountId, BigDecimal amount, String description, String idempotencyKey) {
+        public TransferResult transfer(UUID fromAccountId, UUID toAccountId, BigDecimal amount, String description,
+            String idempotencyKey) {
 
         if (idempotencyKey != null) {
             Optional<IdempotentRequest> existingRequest = idempotencyRepository.findById(idempotencyKey);
@@ -44,7 +48,9 @@ public class TransferService {
             // ONLY return early if we actually found a previous request
             if (existingRequest.isPresent()) {
                 try {
-                    return objectMapper.readValue(existingRequest.get().getResponseBody(), TransferResult.class);
+                    TransferResult result = objectMapper.readValue(existingRequest.get().getResponseBody(), TransferResult.class);
+                    cacheReceipt(idempotencyKey, existingRequest.get().getResponseBody());
+                    return result;
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException("Failed to deserialize previous transfer result", e);
                 }
@@ -103,19 +109,42 @@ public class TransferService {
         "Transfer completed successfully"
         );
 
-    // Save the JSON representation in the idempotency table
+    // Save the permanent receipt in PostgreSQL and cache it in Redis.
         if (idempotencyKey != null) {
             try {
+                String jsonReceipt = objectMapper.writeValueAsString(result);
                 idempotencyRepository.save(new IdempotentRequest(
                     idempotencyKey, 
                     200, 
-                    objectMapper.writeValueAsString(result) // Store as JSON string in DB
+                    jsonReceipt
                 ));
+                cacheReceiptAfterCommit(idempotencyKey, jsonReceipt);
             } catch (JsonProcessingException e) {
-                // If Jackson fails to convert the object to JSON, crash the transaction cleanly
                 throw new RuntimeException("Failed to serialize transfer result", e);
             }
         }
         return result;
+    }
+
+    private void cacheReceiptAfterCommit(String idempotencyKey, String jsonReceipt) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            cacheReceipt(idempotencyKey, jsonReceipt);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                cacheReceipt(idempotencyKey, jsonReceipt);
+            }
+        });
+    }
+
+    private void cacheReceipt(String idempotencyKey, String jsonReceipt) {
+        try {
+            idempotencyService.saveReceipt(idempotencyKey, jsonReceipt);
+        } catch (RuntimeException ignored) {
+            // Redis is an accelerator; PostgreSQL remains the durable record.
+        }
     }
 }

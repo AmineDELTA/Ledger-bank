@@ -1,11 +1,14 @@
 package io.github.aminedelta.core_banking.controller;
 
-import io.github.aminedelta.core_banking.domain.IdempotentRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.aminedelta.core_banking.dto.TransferRequest;
-import io.github.aminedelta.core_banking.exception.InsufficientFundsException;
-import io.github.aminedelta.core_banking.repository.IdempotentRequestRepository;
-import io.github.aminedelta.core_banking.service.TransferService;
 import io.github.aminedelta.core_banking.dto.TransferResult;
+import io.github.aminedelta.core_banking.domain.IdempotentRequest;
+import io.github.aminedelta.core_banking.exception.InsufficientFundsException;
+import io.github.aminedelta.core_banking.service.IdempotencyService;
+import io.github.aminedelta.core_banking.service.TransferService;
+import io.github.aminedelta.core_banking.repository.IdempotentRequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
@@ -17,15 +20,34 @@ import org.springframework.web.bind.annotation.*;
 public class TransferController {
     
     private final TransferService transferService;
+    private final IdempotencyService idempotencyService;
     private final IdempotentRequestRepository idempotencyRepository;
+    private final ObjectMapper objectMapper;
 
     @PostMapping
     public ResponseEntity<?> executeTransfer(
             @RequestBody TransferRequest request, 
-            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+            @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey) {
 
         try {
             // 1. Call the service (this goes inside the try block)
+            if (!idempotencyKey.isBlank()) {
+                try {
+                    // Redis is a fast guard; PostgreSQL remains the durable fallback.
+                    if (!idempotencyService.tryLock(idempotencyKey)) {
+                        String cachedReceipt = idempotencyService.getCachedReceipt(idempotencyKey);
+                        if ("PENDING".equals(cachedReceipt)) {
+                            return ResponseEntity.status(409).body("Request is currently being processed.");
+                        } else if (cachedReceipt != null) {
+                            return cachedReceipt(cachedReceipt, 200);
+                        }
+                    }
+                } catch (RuntimeException ignored) {
+                    // Continue with PostgreSQL if Redis is unavailable.
+                }
+            } else {
+                return ResponseEntity.badRequest().body("Idempotency-Key header cannot be blank.");
+            }
             TransferResult result = transferService.transfer(
                 request.getFromAccountId(),
                 request.getToAccountId(),
@@ -38,26 +60,37 @@ public class TransferController {
             return ResponseEntity.ok(result);
 
         } catch (DataIntegrityViolationException e) {
-            // EDGE CASE: Thread B hit the controller at the exact millisecond as Thread A.
-            // Thread A won, committed the transaction, and saved the key. 
-            // Thread B's transaction blew up on the Unique Primary Key constraint and rolled back safely.
             IdempotentRequest cachedRequest = idempotencyRepository.findById(idempotencyKey)
-                    .orElseThrow(() -> new IllegalStateException("Key should exist here"));
-            
+                    .orElseThrow(() -> new IllegalStateException("Idempotency record was not found"));
+
             if (cachedRequest.getResponseStatusCode() == null) {
                 return ResponseEntity.status(409).body("Request is currently being processed.");
             }
-            // We just fetch Thread A's success result and give it to Thread B!
-            return ResponseEntity.status(cachedRequest.getResponseStatusCode())
-                                 .body(cachedRequest.getResponseBody());
-
+                return cachedReceipt(cachedRequest.getResponseBody(), cachedRequest.getResponseStatusCode());
         } catch (InsufficientFundsException | IllegalArgumentException e) {
-            // Note: Because these throw an exception, the @Transactional rolls back. 
-            // The idempotency key is deliberately NOT saved, allowing the user to deposit funds and retry.
+            releaseRedisKey(idempotencyKey);
             return ResponseEntity.badRequest().body(e.getMessage());
             
         } catch (Exception e) {
+            releaseRedisKey(idempotencyKey);
             return ResponseEntity.status(500).body("An unexpected error occurred: " + e.getMessage());
+        }
+    }
+
+    private void releaseRedisKey(String idempotencyKey) {
+        try {
+            idempotencyService.release(idempotencyKey);
+        } catch (RuntimeException ignored) {
+            // Redis cleanup must not hide the transfer error.
+        }
+    }
+
+    private ResponseEntity<?> cachedReceipt(String jsonReceipt, int statusCode) {
+        try {
+            TransferResult result = objectMapper.readValue(jsonReceipt, TransferResult.class);
+            return ResponseEntity.status(statusCode).body(result);
+        } catch (JsonProcessingException e) {
+            return ResponseEntity.internalServerError().body("Cached transfer receipt is invalid.");
         }
     }
 }
