@@ -1,5 +1,6 @@
 package io.github.aminedelta.core_banking.aop;
 
+import io.github.aminedelta.core_banking.dto.TransferResult;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -17,13 +18,16 @@ public class LoggingAspect {
     public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
         
         String methodName = joinPoint.getSignature().getName();
+        Object[] arguments = joinPoint.getArgs();
         long startTime = System.currentTimeMillis();
         
-        log.info("Executing {}...", methodName);
+        log.info("Executing {} fromAccountId={} toAccountId={} amount={}",
+            methodName, arguments[0], arguments[1], arguments[2]);
 
         try {
             Object result = joinPoint.proceed();
-            log.info("Method {} completed successfully.", methodName);
+            TransferResult transferResult = (TransferResult) result;
+            log.info("Transfer succeeded transactionId={}", transferResult.transactionId());
             return result;
             
         } catch (Throwable e) {

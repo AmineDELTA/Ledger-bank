@@ -118,6 +118,22 @@ class TransferServiceTest {
         assertEquals(0, new BigDecimal("1500.00").compareTo(accountService.getBalance(accountBId)));
     }
 
+    @Test
+    @DisplayName("Transfer to self throws exception")
+    void testTransferToSelf() {
+        assertThrows(IllegalArgumentException.class, () ->
+                transferService.transfer(accountAId, accountAId, new BigDecimal("100.00"), "self transfer", null)
+        );
+    }
+
+    @Test
+    @DisplayName("Audit aspect")
+    void testAuditAspect() {
+        transferService.transfer(accountAId, accountBId, new BigDecimal("50.00"), "audit test", null);
+
+        
+    }
+
     private void seedInitialBalance(UUID accountId, BigDecimal amount) {
         TransactionHeader header = transactionHeaderRepository.save(new TransactionHeader("initial deposit"));
 
