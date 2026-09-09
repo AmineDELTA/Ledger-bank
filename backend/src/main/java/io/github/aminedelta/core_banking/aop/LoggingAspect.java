@@ -10,10 +10,9 @@ import org.springframework.stereotype.Component;
 
 @Aspect
 @Component
-@Slf4j // Gives you the 'log' object automatically
+@Slf4j
 public class LoggingAspect {
 
-    // This Pointcut looks for any method in your project tagged with @AuditLog
     @Around("@annotation(io.github.aminedelta.core_banking.aop.AuditLog)")
     public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
         
@@ -35,7 +34,6 @@ public class LoggingAspect {
             throw e; 
             
         } finally {
-            // This runs NO MATTER WHAT - success or crash
             long executionTime = System.currentTimeMillis() - startTime;
             log.info("Method {} execution time: {} ms", methodName, executionTime);
         }

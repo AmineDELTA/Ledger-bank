@@ -3,6 +3,7 @@ package io.github.aminedelta.core_banking.service;
 import io.github.aminedelta.core_banking.domain.*;
 import io.github.aminedelta.core_banking.dto.CreateAccountRequest;
 import io.github.aminedelta.core_banking.dto.AccountResponse;
+import io.github.aminedelta.core_banking.dto.TransactionHistoryResponse;
 import io.github.aminedelta.core_banking.repository.AccountRepository;
 import io.github.aminedelta.core_banking.repository.LedgerEntryRepository;
 import io.github.aminedelta.core_banking.repository.TransactionHeaderRepository;
@@ -31,16 +32,14 @@ public class AccountService {
 
     @Transactional
     public AccountResponse createAccount(CreateAccountRequest request) {
-        // 1. Instantiate using your strict entity constructor
         Account account = new Account(request.getAccountNumber(), request.getHolderName());
         
         if (request.getInitialBalance() != null) {
             account.setBalance(request.getInitialBalance());
         }
 
-        Account savedAccount = accountRepository.save(account);//???????
+        Account savedAccount = accountRepository.save(account);
 
-        // 2. The Genesis Deposit for double-entry compliance
         if (savedAccount.getBalance().compareTo(BigDecimal.ZERO) > 0) {
             TransactionHeader header = new TransactionHeader("Genesis Deposit for " + request.getHolderName());
             transactionHeaderRepository.save(header);
@@ -69,6 +68,23 @@ public class AccountService {
                         account.getAccountNumber(),
                         account.getHolderName(),
                         account.getBalance()
+                ))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TransactionHistoryResponse> getTransactionHistory(UUID accountId) {
+        if (!accountRepository.existsById(accountId)) {
+            throw new IllegalArgumentException("Account not found with ID: " + accountId);
+        }
+
+        return ledgerRepository.findHistoryByAccountId(accountId).stream()
+                .map(entry -> new TransactionHistoryResponse(
+                        entry.getTransactionHeader().getId(),
+                        entry.getTransactionHeader().getTimestamp(),
+                        entry.getTransactionHeader().getDescription(),
+                        entry.getType(),
+                        entry.getAmount()
                 ))
                 .toList();
     }

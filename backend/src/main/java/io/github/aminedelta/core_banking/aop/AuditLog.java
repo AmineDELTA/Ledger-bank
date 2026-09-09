@@ -5,7 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Target(ElementType.METHOD) // This sticky note can ONLY be placed on methods
-@Retention(RetentionPolicy.RUNTIME) // Keep this note alive while the app is running
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
 public @interface AuditLog {
 }

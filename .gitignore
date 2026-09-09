@@ -1,11 +1,9 @@
-# Node / Frontend
 node_modules/
 dist/
 .env
 .env.local
 .env.*
 
-# Java / Backend
 target/
 *.class
 .mvn/wrapper/maven-wrapper.jar
@@ -14,5 +12,5 @@ logs/
 .idea/
 *.log
 
-# Personal local development notes
 LOCAL_RUNBOOK.md
+notes/

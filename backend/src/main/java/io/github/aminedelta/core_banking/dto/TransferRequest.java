@@ -11,7 +11,6 @@ public class TransferRequest {
     private BigDecimal amount;
     private String description;
     
-    // Protected no-arg constructor allows Jackson (JSON parser) to instantiate the object via reflection
     protected TransferRequest() {}
 
     public TransferRequest(UUID fromAccountId, UUID toAccountId, BigDecimal amount, String description) {

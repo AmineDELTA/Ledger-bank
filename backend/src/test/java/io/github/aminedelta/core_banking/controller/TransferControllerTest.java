@@ -99,7 +99,6 @@ class TransferControllerTest {
         String idempotencyKey = UUID.randomUUID().toString();
         TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
 
-        // FIX 1: Mock the service to return a successful TransferResult
         io.github.aminedelta.core_banking.dto.TransferResult mockResult = 
             new io.github.aminedelta.core_banking.dto.TransferResult(UUID.randomUUID(), "SUCCESS", "Transfer completed successfully");
         
@@ -111,7 +110,6 @@ class TransferControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                // FIX 2: Assert against the JSON object's "message" field, not the raw string
                 .andExpect(jsonPath("$.message").value("Transfer completed successfully"));
 
         verify(transferService, times(1)).transfer(any(), any(), any(), any(), any());
@@ -125,7 +123,6 @@ class TransferControllerTest {
         TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
         IdempotentRequest completedRequest = new IdempotentRequest(idempotencyKey, 200, "Transfer completed successfully");
 
-        // FIX 3: Mock the SERVICE to throw the database constraint violation
         when(transferService.transfer(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("Primary key violation"));
         when(idempotencyService.tryLock(idempotencyKey)).thenReturn(false);
@@ -149,7 +146,6 @@ class TransferControllerTest {
         TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
         IdempotentRequest pendingRequest = new IdempotentRequest(idempotencyKey, null, null);
 
-        // FIX 4: Mock the SERVICE to throw the database constraint violation
         when(transferService.transfer(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("Primary key violation"));
         when(idempotencyService.tryLock(idempotencyKey)).thenReturn(false);

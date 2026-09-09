@@ -2,6 +2,7 @@ package io.github.aminedelta.core_banking.controller;
 
 import io.github.aminedelta.core_banking.dto.AccountResponse;
 import io.github.aminedelta.core_banking.dto.CreateAccountRequest;
+import io.github.aminedelta.core_banking.dto.TransactionHistoryResponse;
 import io.github.aminedelta.core_banking.service.AccountService;
 import lombok.RequiredArgsConstructor;
 
@@ -30,6 +31,11 @@ public class AccountController {
     public ResponseEntity<BigDecimal> getBalance(@PathVariable UUID accountId) {
         BigDecimal balance = accountService.getBalance(accountId);
         return ResponseEntity.ok(balance);
+    }
+
+    @GetMapping("/{accountId}/transactions")
+    public ResponseEntity<List<TransactionHistoryResponse>> getTransactionHistory(@PathVariable UUID accountId) {
+        return ResponseEntity.ok(accountService.getTransactionHistory(accountId));
     }
 
     @PostMapping

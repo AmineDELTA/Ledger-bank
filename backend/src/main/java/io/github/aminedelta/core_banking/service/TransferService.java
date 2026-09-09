@@ -45,7 +45,6 @@ public class TransferService {
         if (idempotencyKey != null) {
             Optional<IdempotentRequest> existingRequest = idempotencyRepository.findById(idempotencyKey);
             
-            // ONLY return early if we actually found a previous request
             if (existingRequest.isPresent()) {
                 try {
                     TransferResult result = objectMapper.readValue(existingRequest.get().getResponseBody(), TransferResult.class);
@@ -67,7 +66,6 @@ public class TransferService {
             throw new IllegalArgumentException("Cannot transfer to the same account");
         }
 
-        // 1. Deterministic Lock Ordering to prevent PostgreSQL deadlocks
         UUID firstLockId = fromAccountId.compareTo(toAccountId) < 0 ? fromAccountId : toAccountId;
         UUID secondLockId = fromAccountId.compareTo(toAccountId) < 0 ? toAccountId : fromAccountId;
 
@@ -79,14 +77,12 @@ public class TransferService {
         Account fromAccount = (firstLockAccount.getId().equals(fromAccountId)) ? firstLockAccount : secondLockAccount;
         Account toAccount = (firstLockAccount.getId().equals(toAccountId)) ? firstLockAccount : secondLockAccount;
 
-        // 2. Check balance against locked state
         if (fromAccount.getBalance().compareTo(amount) < 0) {
             throw new InsufficientFundsException("Insufficient funds in the from account");
         }
 
         fromAccount.setBalance(fromAccount.getBalance().subtract(amount));
         toAccount.setBalance(toAccount.getBalance().add(amount));
-        // 3. Create double-entry records
         TransactionHeader savedHeader = transactionHeaderRepository.save(new TransactionHeader(description));
 
         LedgerEntry debitEntry = new LedgerEntry();
@@ -109,7 +105,6 @@ public class TransferService {
         "Transfer completed successfully"
         );
 
-    // Save the permanent receipt in PostgreSQL and cache it in Redis.
         if (idempotencyKey != null) {
             try {
                 String jsonReceipt = objectMapper.writeValueAsString(result);
@@ -144,7 +139,6 @@ public class TransferService {
         try {
             idempotencyService.saveReceipt(idempotencyKey, jsonReceipt);
         } catch (RuntimeException ignored) {
-            // Redis is an accelerator; PostgreSQL remains the durable record.
         }
     }
 }

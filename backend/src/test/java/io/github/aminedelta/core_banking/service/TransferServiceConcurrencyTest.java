@@ -47,7 +47,7 @@ public class TransferServiceConcurrencyTest {
 
         Account accountA = new Account("TEST-ACC-001", "Holder A");
         accountA.setBalance(new BigDecimal("1000.00"));
-        final Account finalAccountA = accountRepository.save(accountA); // Database assigns the UUID here
+        final Account finalAccountA = accountRepository.save(accountA);
 
         Account accountB = new Account("TEST-ACC-002", "Holder B");
         accountB.setBalance(new BigDecimal("0.00"));
@@ -63,7 +63,7 @@ public class TransferServiceConcurrencyTest {
         for (int i=0; i < threadCount; i++) {
             Future<Exception> future = executorService.submit(() -> {
                 try {
-                    latch.await(); // Wait for the latch to be released
+                    latch.await();
                     transferService.transfer(
                         finalAccountA.getId(),
                         finalAccountB.getId(),
@@ -71,17 +71,17 @@ public class TransferServiceConcurrencyTest {
                         "Concurrent Transfer",
                         null
                     );
-                    return null; // No exception, transfer successful
+                    return null;
                 } catch (Exception e) {
                     e.printStackTrace();
                     return e;
                 } finally {
-                    endLatch.countDown(); // Signal that this thread has finished
+                    endLatch.countDown();
                 }
             });
             futures.add(future);
         }
-        latch.countDown(); // Release the latch to start all threads
+        latch.countDown();
 
         boolean completed = endLatch.await(10, TimeUnit.SECONDS);
         assertEquals(true, completed, "Not all threads completed in time");

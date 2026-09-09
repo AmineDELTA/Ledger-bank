@@ -30,10 +30,8 @@ public class TransferController {
             @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey) {
 
         try {
-            // 1. Call the service (this goes inside the try block)
             if (!idempotencyKey.isBlank()) {
                 try {
-                    // Redis is a fast guard; PostgreSQL remains the durable fallback.
                     if (!idempotencyService.tryLock(idempotencyKey)) {
                         String cachedReceipt = idempotencyService.getCachedReceipt(idempotencyKey);
                         if ("PENDING".equals(cachedReceipt)) {
@@ -43,7 +41,6 @@ public class TransferController {
                         }
                     }
                 } catch (RuntimeException ignored) {
-                    // Continue with PostgreSQL if Redis is unavailable.
                 }
             } else {
                 return ResponseEntity.badRequest().body("Idempotency-Key header cannot be blank.");
@@ -56,7 +53,6 @@ public class TransferController {
                 idempotencyKey
             );
             
-            // 2. Return the successful result
             return ResponseEntity.ok(result);
 
         } catch (DataIntegrityViolationException e) {
@@ -81,7 +77,6 @@ public class TransferController {
         try {
             idempotencyService.release(idempotencyKey);
         } catch (RuntimeException ignored) {
-            // Redis cleanup must not hide the transfer error.
         }
     }
 
