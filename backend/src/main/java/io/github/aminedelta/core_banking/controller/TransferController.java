@@ -29,6 +29,10 @@ public class TransferController {
             @RequestBody TransferRequest request, 
             @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey) {
 
+        if (request == null) {
+            return ResponseEntity.badRequest().body("Request body cannot be null.");
+        }
+
         try {
             if (!idempotencyKey.isBlank()) {
                 try {
@@ -81,6 +85,9 @@ public class TransferController {
     }
 
     private ResponseEntity<?> cachedReceipt(String jsonReceipt, int statusCode) {
+        if (jsonReceipt == null || jsonReceipt.isBlank()) {
+            return ResponseEntity.status(statusCode).build();
+        }
         try {
             TransferResult result = objectMapper.readValue(jsonReceipt, TransferResult.class);
             return ResponseEntity.status(statusCode).body(result);

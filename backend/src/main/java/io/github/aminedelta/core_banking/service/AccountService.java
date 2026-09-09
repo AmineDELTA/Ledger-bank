@@ -32,6 +32,16 @@ public class AccountService {
 
     @Transactional
     public AccountResponse createAccount(CreateAccountRequest request) {
+        if (request.getAccountNumber() == null || request.getAccountNumber().isBlank()) {
+            throw new IllegalArgumentException("Account number cannot be empty");
+        }
+        if (request.getHolderName() == null || request.getHolderName().isBlank()) {
+            throw new IllegalArgumentException("Holder name cannot be empty");
+        }
+        if (request.getInitialBalance() != null && request.getInitialBalance().compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Initial balance cannot be negative");
+        }
+
         Account account = new Account(request.getAccountNumber(), request.getHolderName());
         
         if (request.getInitialBalance() != null) {
@@ -80,11 +90,12 @@ public class AccountService {
 
         return ledgerRepository.findHistoryByAccountId(accountId).stream()
                 .map(entry -> new TransactionHistoryResponse(
+                        entry.getId(),
                         entry.getTransactionHeader().getId(),
                         entry.getTransactionHeader().getTimestamp(),
                         entry.getTransactionHeader().getDescription(),
                         entry.getType(),
-                        entry.getAmount()
+                        entry.getAmount().abs()
                 ))
                 .toList();
     }

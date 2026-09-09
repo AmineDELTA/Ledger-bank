@@ -20,6 +20,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+        boolean notFound = ex.getMessage() != null && ex.getMessage().toLowerCase().contains("not found");
+        HttpStatus status = notFound ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST;
+        String code = notFound ? "ACCOUNT_NOT_FOUND" : "INVALID_REQUEST";
+        ErrorResponse errorResponse = new ErrorResponse(ex.getMessage(), code, Instant.now().toString(), status.value());
+        return ResponseEntity.status(status).body(errorResponse);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Unhandled exception caught by global handler: ", ex);

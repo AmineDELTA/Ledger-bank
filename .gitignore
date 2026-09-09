@@ -1,16 +1,39 @@
+# Dependencies and package managers
 node_modules/
+**/node_modules/
+
+# Build outputs and distribution
 dist/
+**/dist/
+target/
+**/target/
+*.class
+.vite/
+**/.vite/
+
+# Environment files
 .env
 .env.local
 .env.*
+!.env.example
+!**/.env.example
 
-target/
-*.class
-.mvn/wrapper/maven-wrapper.jar
+# Logs and rotation archives
 logs/
+**/logs/
+*.log
+*.gz
+
+# IDE and Editor files
 .vscode/
 .idea/
-*.log
+*.swp
+*~
 
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Local notes and runbooks
 LOCAL_RUNBOOK.md
 notes/

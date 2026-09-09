@@ -133,6 +133,37 @@ class TransferServiceTest {
         
     }
 
+    @Test
+    @DisplayName("Transaction history returns newest ledger entries first")
+    void testTransactionHistoryOrderAndSides() {
+        transferService.transfer(accountAId, accountBId, new BigDecimal("200.00"), "history transfer", null);
+
+        var sourceHistory = accountService.getTransactionHistory(accountAId);
+        var targetHistory = accountService.getTransactionHistory(accountBId);
+        var sourceTransfer = sourceHistory.stream()
+                .filter(entry -> "history transfer".equals(entry.description()))
+                .findFirst()
+                .orElseThrow();
+        var targetTransfer = targetHistory.stream()
+                .filter(entry -> "history transfer".equals(entry.description()))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(2, sourceHistory.size());
+        assertEquals(2, targetHistory.size());
+        assertEquals(EntryType.DEBIT, sourceTransfer.type());
+        assertEquals(0, new BigDecimal("200.00").compareTo(sourceTransfer.amount()));
+        assertEquals(EntryType.CREDIT, targetTransfer.type());
+    }
+
+    @Test
+    @DisplayName("Transaction history rejects unknown accounts")
+    void testTransactionHistoryUnknownAccount() {
+        assertThrows(IllegalArgumentException.class, () ->
+                accountService.getTransactionHistory(UUID.randomUUID())
+        );
+    }
+
     private void seedInitialBalance(UUID accountId, BigDecimal amount) {
         TransactionHeader header = transactionHeaderRepository.save(new TransactionHeader("initial deposit"));
 

@@ -121,7 +121,8 @@ class TransferControllerTest {
         
         String idempotencyKey = UUID.randomUUID().toString();
         TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "Payment");
-        IdempotentRequest completedRequest = new IdempotentRequest(idempotencyKey, 200, "Transfer completed successfully");
+        String receipt = "{\"transactionId\":\"" + UUID.randomUUID() + "\",\"status\":\"SUCCESS\",\"message\":\"Transfer completed successfully\"}";
+        IdempotentRequest completedRequest = new IdempotentRequest(idempotencyKey, 200, receipt);
 
         when(transferService.transfer(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("Primary key violation"));
@@ -135,7 +136,8 @@ class TransferControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(content().string("Transfer completed successfully"));
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.message").value("Transfer completed successfully"));
     }
 
     @Test

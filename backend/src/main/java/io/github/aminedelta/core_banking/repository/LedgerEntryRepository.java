@@ -13,6 +13,6 @@ import java.util.List;
 public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, UUID> {
     List<LedgerEntry> findByAccountId(UUID accountId);
 
-    @Query("select entry from LedgerEntry entry join fetch entry.transactionHeader header where entry.accountId = :accountId order by header.timestamp desc")
+    @Query("select entry from LedgerEntry entry join fetch entry.transactionHeader header where entry.accountId = :accountId order by header.timestamp desc, entry.id desc")
     List<LedgerEntry> findHistoryByAccountId(@Param("accountId") UUID accountId);
 }

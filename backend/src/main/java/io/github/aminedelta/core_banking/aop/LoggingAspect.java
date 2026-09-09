@@ -20,13 +20,20 @@ public class LoggingAspect {
         Object[] arguments = joinPoint.getArgs();
         long startTime = System.currentTimeMillis();
         
-        log.info("Executing {} fromAccountId={} toAccountId={} amount={}",
-            methodName, arguments[0], arguments[1], arguments[2]);
+        if (arguments != null && arguments.length >= 3) {
+            log.info("Executing {} fromAccountId={} toAccountId={} amount={}",
+                methodName, arguments[0], arguments[1], arguments[2]);
+        } else {
+            log.info("Executing {}", methodName);
+        }
 
         try {
             Object result = joinPoint.proceed();
-            TransferResult transferResult = (TransferResult) result;
-            log.info("Transfer succeeded transactionId={}", transferResult.transactionId());
+            if (result instanceof TransferResult transferResult) {
+                log.info("Transfer succeeded transactionId={}", transferResult.transactionId());
+            } else {
+                log.info("Method {} completed successfully", methodName);
+            }
             return result;
             
         } catch (Throwable e) {
