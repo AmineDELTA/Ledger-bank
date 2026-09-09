@@ -4,6 +4,26 @@ A distributed financial ledger and transfer engine engineered for high-concurren
 
 ---
 
+<!-- ================================================================= -->
+<!-- IMAGE PLACEHOLDER 1: Dashboard / UI Screenshot                    -->
+<!-- Upload your dashboard image to docs/images/dashboard.png          -->
+<!-- Or replace the src with your GitHub uploaded image URL            -->
+<!-- ================================================================= -->
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Ledger-Bank Admin Console & Simulation Lab" width="900" />
+</p>
+
+<!-- ================================================================= -->
+<!-- IMAGE PLACEHOLDER 2: Architecture Diagram (Optional)              -->
+<!-- Upload your diagram to docs/images/architecture.png               -->
+<!-- Or replace the src with your GitHub uploaded image URL            -->
+<!-- ================================================================= -->
+<p align="center">
+  <img src="docs/images/architecture.png" alt="System Architecture & Ledger Pipeline" width="900" />
+</p>
+
+---
+
 ## Key Architectural Safeguards
 
 - **Strict Double-Entry Bookkeeping**: Every fund transfer records immutable debit and credit ledger entries under a single transaction header. Account balances always match the sum of their ledger history.
@@ -161,6 +181,22 @@ core-banking-app/
 
 ### System Health
 - `GET /actuator/health` — Returns status of backend, database, and cache.
+
+---
+
+## In the Works & Roadmap
+
+Planned features and architectural enhancements currently queued for development:
+
+- [ ] **Security (API Key Filter on Write Endpoints)**
+  - API key authentication filter protecting write operations (`POST /transfers`, `POST /accounts`).
+  - Coded from scratch without heavy third-party dependencies for clean, transparent control.
+- [ ] **CI Pipeline (GitHub Actions)**
+  - Automated continuous integration pipeline: test suite + production build on push and pull requests.
+  - Live GitHub build status badge embedded directly into the repository header.
+- [ ] **Testcontainers Integration Testing**
+  - Spin up real, ephemeral PostgreSQL and Redis Docker containers during integration test runs.
+  - Replaces mocks with true-to-life production environment validation.
 
 ---
 

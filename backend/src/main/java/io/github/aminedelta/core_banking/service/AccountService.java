@@ -4,6 +4,7 @@ import io.github.aminedelta.core_banking.domain.*;
 import io.github.aminedelta.core_banking.dto.CreateAccountRequest;
 import io.github.aminedelta.core_banking.dto.AccountResponse;
 import io.github.aminedelta.core_banking.dto.TransactionHistoryResponse;
+import io.github.aminedelta.core_banking.exception.AccountNotFoundException;
 import io.github.aminedelta.core_banking.repository.AccountRepository;
 import io.github.aminedelta.core_banking.repository.LedgerEntryRepository;
 import io.github.aminedelta.core_banking.repository.TransactionHeaderRepository;
@@ -26,7 +27,7 @@ public class AccountService {
     @Transactional(readOnly = true)
     public BigDecimal getBalance(UUID accountId) {
         Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found with ID: " + accountId));
+                .orElseThrow(() -> new AccountNotFoundException(accountId));
         return account.getBalance();
     }
 
@@ -85,7 +86,7 @@ public class AccountService {
     @Transactional(readOnly = true)
     public List<TransactionHistoryResponse> getTransactionHistory(UUID accountId) {
         if (!accountRepository.existsById(accountId)) {
-            throw new IllegalArgumentException("Account not found with ID: " + accountId);
+            throw new AccountNotFoundException(accountId);
         }
 
         return ledgerRepository.findHistoryByAccountId(accountId).stream()

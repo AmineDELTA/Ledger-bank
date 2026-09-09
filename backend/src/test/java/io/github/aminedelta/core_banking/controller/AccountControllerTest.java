@@ -2,6 +2,7 @@ package io.github.aminedelta.core_banking.controller;
 
 import io.github.aminedelta.core_banking.domain.EntryType;
 import io.github.aminedelta.core_banking.dto.TransactionHistoryResponse;
+import io.github.aminedelta.core_banking.exception.AccountNotFoundException;
 import io.github.aminedelta.core_banking.service.AccountService;
 import io.github.aminedelta.core_banking.service.IdempotencyService;
 import io.github.aminedelta.core_banking.service.TransferService;
@@ -73,7 +74,7 @@ class AccountControllerTest {
     void getTransactionHistory_UnknownAccount_ReturnsNotFound() throws Exception {
         UUID accountId = UUID.randomUUID();
         when(accountService.getTransactionHistory(accountId))
-                .thenThrow(new IllegalArgumentException("Account not found with ID: " + accountId));
+                .thenThrow(new AccountNotFoundException(accountId));
 
         mockMvc.perform(get("/accounts/{accountId}/transactions", accountId))
                 .andExpect(status().isNotFound())

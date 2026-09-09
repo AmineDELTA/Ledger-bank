@@ -4,6 +4,7 @@ import io.github.aminedelta.core_banking.domain.Account;
 import io.github.aminedelta.core_banking.domain.EntryType;
 import io.github.aminedelta.core_banking.domain.LedgerEntry;
 import io.github.aminedelta.core_banking.domain.TransactionHeader;
+import io.github.aminedelta.core_banking.exception.AccountNotFoundException;
 import io.github.aminedelta.core_banking.exception.InsufficientFundsException;
 import io.github.aminedelta.core_banking.repository.AccountRepository;
 import io.github.aminedelta.core_banking.repository.LedgerEntryRepository;
@@ -159,7 +160,7 @@ class TransferServiceTest {
     @Test
     @DisplayName("Transaction history rejects unknown accounts")
     void testTransactionHistoryUnknownAccount() {
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(AccountNotFoundException.class, () ->
                 accountService.getTransactionHistory(UUID.randomUUID())
         );
     }

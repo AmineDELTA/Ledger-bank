@@ -89,7 +89,9 @@ class TransferControllerTest {
             .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INSUFFICIENT_FUNDS"))
+                .andExpect(jsonPath("$.message").value("Insufficient balance"));
     }
 
     @Test
@@ -160,7 +162,8 @@ class TransferControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
-                .andExpect(content().string("Request is currently being processed."));
+                .andExpect(jsonPath("$.error").value("CONCURRENT_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Request is currently being processed."));
     }
 
     @Test
@@ -198,8 +201,35 @@ class TransferControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
-                .andExpect(content().string("Request is currently being processed."));
+                .andExpect(jsonPath("$.error").value("CONCURRENT_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Request is currently being processed."));
 
         verify(transferService, times(0)).transfer(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /transfers - Blank idempotency key returns 400 with ErrorResponse")
+    void executeTransfer_BlankIdempotencyKey_ReturnsBadRequestErrorResponse() throws Exception {
+        TransferRequest request = new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("50.00"), "Blank Key");
+
+        mockMvc.perform(post("/transfers")
+                .header("Idempotency-Key", "  ")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Idempotency-Key header cannot be blank."));
+    }
+
+    @Test
+    @DisplayName("POST /transfers - Malformed JSON body returns 400 Bad Request instead of 500")
+    void executeTransfer_MalformedBody_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/transfers")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fromAccountId\":\"not-a-valid-uuid\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Malformed request body or invalid parameter format"));
     }
 }

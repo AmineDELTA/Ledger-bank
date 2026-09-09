@@ -5,6 +5,7 @@ import io.github.aminedelta.core_banking.domain.IdempotentRequest;
 import io.github.aminedelta.core_banking.domain.LedgerEntry;
 import io.github.aminedelta.core_banking.domain.TransactionHeader;
 import io.github.aminedelta.core_banking.dto.TransferResult;
+import io.github.aminedelta.core_banking.exception.AccountNotFoundException;
 import io.github.aminedelta.core_banking.exception.InsufficientFundsException;
 import io.github.aminedelta.core_banking.repository.AccountRepository;
 import io.github.aminedelta.core_banking.repository.LedgerEntryRepository;
@@ -70,9 +71,9 @@ public class TransferService {
         UUID secondLockId = fromAccountId.compareTo(toAccountId) < 0 ? toAccountId : fromAccountId;
 
         Account firstLockAccount = accountRepository.findAndLockById(firstLockId)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + firstLockId));
+                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + firstLockId));
         Account secondLockAccount = accountRepository.findAndLockById(secondLockId)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + secondLockId));
+                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + secondLockId));
 
         Account fromAccount = (firstLockAccount.getId().equals(fromAccountId)) ? firstLockAccount : secondLockAccount;
         Account toAccount = (firstLockAccount.getId().equals(toAccountId)) ? firstLockAccount : secondLockAccount;
