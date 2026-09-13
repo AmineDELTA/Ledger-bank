@@ -2,6 +2,9 @@
 
 A distributed financial ledger and transfer engine engineered for high-concurrency balance transfers, transaction idempotency, and audit-grade consistency.
 
+[![Backend CI](https://github.com/AmineDELTA/Ledger-bank/actions/workflows/actions_backend.yml/badge.svg)](https://github.com/AmineDELTA/Ledger-bank/actions/workflows/actions_backend.yml)
+[![Frontend CI](https://github.com/AmineDELTA/Ledger-bank/actions/workflows/actions_frontend.yml/badge.svg)](https://github.com/AmineDELTA/Ledger-bank/actions/workflows/actions_frontend.yml)
+
 ---
 
 ## System Architecture & Ledger Pipeline
