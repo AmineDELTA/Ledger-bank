@@ -4,23 +4,15 @@ A distributed financial ledger and transfer engine engineered for high-concurren
 
 ---
 
-<!-- ================================================================= -->
-<!-- IMAGE PLACEHOLDER 1: Dashboard / UI Screenshot                    -->
-<!-- Upload your dashboard image to docs/images/dashboard.png          -->
-<!-- Or replace the src with your GitHub uploaded image URL            -->
-<!-- ================================================================= -->
-<p align="center">
-  <img src="docs/images/dashboard.png" alt="Ledger-Bank Admin Console & Simulation Lab" width="900" />
-</p>
+## System Architecture & Ledger Pipeline
 
-<!-- ================================================================= -->
-<!-- IMAGE PLACEHOLDER 2: Architecture Diagram (Optional)              -->
-<!-- Upload your diagram to docs/images/architecture.png               -->
-<!-- Or replace the src with your GitHub uploaded image URL            -->
-<!-- ================================================================= -->
-<p align="center">
-  <img src="docs/images/architecture.png" alt="System Architecture & Ledger Pipeline" width="900" />
-</p>
+<img width="1355" height="936" alt="System Architecture & Ledger Pipeline" src="https://github.com/user-attachments/assets/282785ad-2a50-4496-8acb-7d0aa87f18dd" />
+
+---
+
+## Ledger-Bank Admin Console & Simulation Lab
+
+<img width="1655" height="890" alt="Ledger-Bank Admin Console & Simulation Lab" src="https://github.com/user-attachments/assets/26b582d7-3a56-4ce7-9b15-b867a26c4d7b" />
 
 ---
 
