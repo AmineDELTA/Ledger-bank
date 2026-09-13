@@ -183,10 +183,10 @@ core-banking-app/
 
 Planned features and architectural enhancements currently queued for development:
 
-- [x] **Security (API Key Filter on Write Endpoints)**
+- [] **Security (API Key Filter on Write Endpoints)**
   - API key authentication filter protecting write operations (`POST /transfers`, `POST /accounts`).
   - Coded from scratch without heavy third-party dependencies for clean, transparent control.
-- [ ] **CI Pipeline (GitHub Actions)**
+- [x] **CI Pipeline (GitHub Actions)**
   - Automated continuous integration pipeline: test suite + production build on push and pull requests.
   - Live GitHub build status badge embedded directly into the repository header.
 - [ ] **Testcontainers Integration Testing**
