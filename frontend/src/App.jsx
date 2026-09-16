@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
 function App() {
   const [accounts, setAccounts] = useState([]);
@@ -373,40 +373,38 @@ function App() {
             title={
               health.components
                 ? Object.entries(health.components)
-                    .map(([key, val]) => `${key}: ${val.status}`)
-                    .join(' | ')
+                  .map(([key, val]) => `${key}: ${val.status}`)
+                  .join(' | ')
                 : 'Click to refresh health check'
             }
-            className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition ${
-              health.status === 'UP'
+            className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition ${health.status === 'UP'
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                 : health.components?.db?.status === 'UP'
-                ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                : health.status === 'DOWN'
-                ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
-                : 'border-slate-200 bg-slate-50 text-slate-500'
-            } disabled:opacity-60`}
+                  ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                  : health.status === 'DOWN'
+                    ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                    : 'border-slate-200 bg-slate-50 text-slate-500'
+              } disabled:opacity-60`}
           >
             <span
-              className={`h-2 w-2 rounded-full ${
-                health.status === 'UP'
+              className={`h-2 w-2 rounded-full ${health.status === 'UP'
                   ? 'bg-emerald-500'
                   : health.components?.db?.status === 'UP'
-                  ? 'bg-amber-500'
-                  : health.status === 'DOWN'
-                  ? 'bg-rose-500'
-                  : 'bg-slate-400 animate-pulse'
-              }`}
+                    ? 'bg-amber-500'
+                    : health.status === 'DOWN'
+                      ? 'bg-rose-500'
+                      : 'bg-slate-400 animate-pulse'
+                }`}
             />
             {healthLoading
               ? 'Checking...'
               : health.status === 'UP'
-              ? 'System online'
-              : health.components?.db?.status === 'UP'
-              ? 'DB online (Redis offline)'
-              : health.status === 'DOWN'
-              ? 'System offline'
-              : 'Checking system...'}
+                ? 'System online'
+                : health.components?.db?.status === 'UP'
+                  ? 'DB online (Redis offline)'
+                  : health.status === 'DOWN'
+                    ? 'System offline'
+                    : 'Checking system...'}
           </button>
         </header>
 
@@ -424,11 +422,10 @@ function App() {
                 {accounts.map((acc) => (
                   <div
                     key={acc.accountId}
-                    className={`flex items-center justify-between gap-3 rounded-xl border p-3 ${
-                      historyAccountId === acc.accountId
+                    className={`flex items-center justify-between gap-3 rounded-xl border p-3 ${historyAccountId === acc.accountId
                         ? 'border-slate-400 bg-white'
                         : 'border-slate-200 bg-slate-50'
-                    }`}
+                      }`}
                   >
                     <div>
                       <p className="text-sm font-medium text-slate-900">{acc.holderName}</p>
@@ -441,11 +438,10 @@ function App() {
                     <button
                       type="button"
                       onClick={() => loadHistory(acc.accountId)}
-                      className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
-                        historyAccountId === acc.accountId
+                      className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${historyAccountId === acc.accountId
                           ? 'border-slate-900 bg-slate-900 text-white'
                           : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       History
                     </button>
@@ -519,11 +515,10 @@ function App() {
             </form>
 
             {transferStatus && (
-              <div className={`mt-4 rounded-xl border px-3 py-2.5 text-sm ${
-                transferStatus.success
+              <div className={`mt-4 rounded-xl border px-3 py-2.5 text-sm ${transferStatus.success
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                   : 'border-rose-200 bg-rose-50 text-rose-700'
-              }`}>
+                }`}>
                 {transferStatus.message}
               </div>
             )}
@@ -571,9 +566,8 @@ function App() {
                 <div className="divide-y divide-slate-200">
                   {historyEntries.map((entry) => (
                     <div key={entry.ledgerEntryId || `${entry.transactionId}-${entry.type}-${entry.amount}`} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 text-sm">
-                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        entry.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                      }`}>
+                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${entry.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                        }`}>
                         {entry.type}
                       </span>
                       <div className="min-w-0">
@@ -582,9 +576,8 @@ function App() {
                           {formatTimestamp(entry.timestamp)} · {entry.transactionId}
                         </p>
                       </div>
-                      <span className={`whitespace-nowrap font-semibold ${
-                        entry.type === 'CREDIT' ? 'text-emerald-700' : 'text-rose-700'
-                      }`}>
+                      <span className={`whitespace-nowrap font-semibold ${entry.type === 'CREDIT' ? 'text-emerald-700' : 'text-rose-700'
+                        }`}>
                         {entry.type === 'CREDIT' ? '+' : '-'}${Math.abs(Number(entry.amount)).toFixed(2)}
                       </span>
                     </div>
@@ -623,53 +616,53 @@ function App() {
             <div className="mt-5 h-[18rem] overflow-y-auto border-t border-slate-800 pt-4">
               {demoState ? (
                 <>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-white">{demoState.name}</p>
-                    <p className="mt-1 text-xs text-slate-400">{demoState.phase}</p>
-                  </div>
-                  <span className="shrink-0 text-xs text-slate-400">{demoState.completed}/5</span>
-                </div>
-
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-emerald-400 transition-all duration-300"
-                    style={{ width: `${(demoState.completed / 5) * 100}%` }}
-                  />
-                </div>
-
-                <div className="mt-3 space-y-1.5">
-                  {demoState.requests.map((request) => (
-                    <div key={request.number} className="flex items-center justify-between rounded-lg bg-slate-800 px-3 py-2 text-xs">
-                      <span className="text-slate-300">Request {request.number}</span>
-                      <span className={getRequestTone(request)}>
-                        {request.status === 'waiting' && 'Waiting'}
-                        {request.status === 'sending' && 'Sending...'}
-                        {request.status === 200 && `${request.status} ${request.result}`}
-                        {request.status === 409 && `${request.status} ${request.result}`}
-                        {request.status !== 'waiting' && request.status !== 'sending' && request.status !== 200 && request.status !== 409 && `${request.status} ${request.result}`}
-                      </span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-white">{demoState.name}</p>
+                      <p className="mt-1 text-xs text-slate-400">{demoState.phase}</p>
                     </div>
-                  ))}
-                </div>
-
-                {demoState.after && (
-                  <div className="mt-3 rounded-lg bg-slate-800 px-3 py-2 text-xs">
-                    <p className="uppercase tracking-[0.16em] text-slate-500">Balance verification</p>
-                    {demoState.after.filter((account) => [sourceId, targetId].includes(account.accountId)).map((account) => {
-                      const before = demoState.before.find((item) => item.accountId === account.accountId);
-                      const change = Number(account.balance) - Number(before?.balance || 0);
-                      return (
-                        <div key={account.accountId} className="mt-2 flex justify-between gap-2 text-slate-300">
-                          <span>{account.accountNumber}</span>
-                          <span className={change < 0 ? 'text-rose-300' : 'text-emerald-300'}>
-                            ${Number(account.balance).toFixed(2)} ({change >= 0 ? '+' : ''}{change.toFixed(2)})
-                          </span>
-                        </div>
-                      );
-                    })}
+                    <span className="shrink-0 text-xs text-slate-400">{demoState.completed}/5</span>
                   </div>
-                )}
+
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-emerald-400 transition-all duration-300"
+                      style={{ width: `${(demoState.completed / 5) * 100}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-3 space-y-1.5">
+                    {demoState.requests.map((request) => (
+                      <div key={request.number} className="flex items-center justify-between rounded-lg bg-slate-800 px-3 py-2 text-xs">
+                        <span className="text-slate-300">Request {request.number}</span>
+                        <span className={getRequestTone(request)}>
+                          {request.status === 'waiting' && 'Waiting'}
+                          {request.status === 'sending' && 'Sending...'}
+                          {request.status === 200 && `${request.status} ${request.result}`}
+                          {request.status === 409 && `${request.status} ${request.result}`}
+                          {request.status !== 'waiting' && request.status !== 'sending' && request.status !== 200 && request.status !== 409 && `${request.status} ${request.result}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {demoState.after && (
+                    <div className="mt-3 rounded-lg bg-slate-800 px-3 py-2 text-xs">
+                      <p className="uppercase tracking-[0.16em] text-slate-500">Balance verification</p>
+                      {demoState.after.filter((account) => [sourceId, targetId].includes(account.accountId)).map((account) => {
+                        const before = demoState.before.find((item) => item.accountId === account.accountId);
+                        const change = Number(account.balance) - Number(before?.balance || 0);
+                        return (
+                          <div key={account.accountId} className="mt-2 flex justify-between gap-2 text-slate-300">
+                            <span>{account.accountNumber}</span>
+                            <span className={change < 0 ? 'text-rose-300' : 'text-emerald-300'}>
+                              ${Number(account.balance).toFixed(2)} ({change >= 0 ? '+' : ''}{change.toFixed(2)})
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-700 px-6 text-center">

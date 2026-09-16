@@ -1,6 +1,5 @@
-# ==========================================
 # Stage 1: Build JAR with Maven & Eclipse Temurin JDK 21
-# ==========================================
+
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /build
 
@@ -13,9 +12,8 @@ RUN chmod +x ./mvnw && ./mvnw dependency:go-offline -B
 COPY src ./src
 RUN ./mvnw clean package -DskipTests
 
-# ==========================================
 # Stage 2: Minimal JRE Runtime
-# ==========================================
+
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
