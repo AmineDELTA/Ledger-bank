@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+const rawApiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+const API_URL = rawApiUrl.replace(/\/+$/, '');
 
 function App() {
   const [accounts, setAccounts] = useState([]);
