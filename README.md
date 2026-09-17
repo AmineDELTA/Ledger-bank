@@ -4,18 +4,20 @@ A distributed financial ledger and transfer engine engineered for high-concurren
 
 [![Backend CI](https://github.com/AmineDELTA/Ledger-bank/actions/workflows/actions_backend.yml/badge.svg)](https://github.com/AmineDELTA/Ledger-bank/actions/workflows/actions_backend.yml)
 [![Frontend CI](https://github.com/AmineDELTA/Ledger-bank/actions/workflows/actions_frontend.yml/badge.svg)](https://github.com/AmineDELTA/Ledger-bank/actions/workflows/actions_frontend.yml)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Netlify-00C7B7?style=flat&logo=netlify&logoColor=white)](https://bucolic-stroopwafel-b39625.netlify.app)
 [![API Status](https://img.shields.io/badge/API_Health-UP-brightgreen?style=flat&logo=render&logoColor=white)](https://ledger-bank-lnav.onrender.com/actuator/health)
 
 ---
 
 ## 🌐 Live Interactive Demo
 
-Experience the full ledger pipeline in action:
+> **🚀 Try the live application:**  
+> ### 👉 [**Open Ledger-bank Web Console (bucolic-stroopwafel-b39625.netlify.app)**](https://bucolic-stroopwafel-b39625.netlify.app) 👈
+>
+> Run concurrent transfer simulations, inspect double-entry ledger entries, and test idempotency directly from the browser.
 
-| Layer / Service | Provider | Link / Details |
+| Layer / Service | Provider | Endpoint / Details |
 | :--- | :--- | :--- |
-| **Admin Console & Simulation Lab** | **Netlify** | [**Launch Web App ↗**](https://bucolic-stroopwafel-b39625.netlify.app) |
+| **Frontend Web Console** | **Netlify** | [bucolic-stroopwafel-b39625.netlify.app ↗](https://bucolic-stroopwafel-b39625.netlify.app) |
 | **Core Banking REST Engine** | **Render** | [`/actuator/health` ↗](https://ledger-bank-lnav.onrender.com/actuator/health) |
 | **Primary Ledger Database** | **Neon** | PostgreSQL 16 (Serverless, Branching) |
 | **Distributed Idempotency Cache** | **Upstash** | Redis (Serverless TLS) |
