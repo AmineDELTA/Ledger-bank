@@ -149,6 +149,10 @@ core-banking-app/
    ```
    The interface will be accessible at `http://localhost:5173`.
 
+> **Local Redis note:** When launching the backend manually while Redis runs on
+> `localhost:6379`, set `SPRING_DATA_REDIS_URL=redis://localhost:6379` before
+> starting Spring Boot. Docker Compose supplies this setting automatically.
+
 ---
 
 ## Environment Variables
