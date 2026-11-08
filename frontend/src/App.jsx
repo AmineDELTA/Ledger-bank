@@ -1,8 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 
 const rawApiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 const API_URL = rawApiUrl.replace(/\/+$/, '');
+
+const money = (value) => `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const shortId = (value) => value ? `${value.slice(0, 8)}...${value.slice(-4)}` : '—';
+
+function StatusMark({ status }) {
+  const active = status === 'UP';
+  return <span className={`status-mark ${active ? 'status-mark--active' : ''}`} aria-hidden="true" />;
+}
 
 function App() {
   const [accounts, setAccounts] = useState([]);
@@ -20,22 +28,21 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [health, setHealth] = useState({ status: 'CHECKING', components: null });
   const [healthLoading, setHealthLoading] = useState(false);
-
   const notificationTimerRef = useRef(null);
+
+  const addActivity = (title, detail, tone = 'info') => {
+    if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+    setNotification({ title, detail, tone });
+    notificationTimerRef.current = setTimeout(() => setNotification(null), 4500);
+  };
 
   const fetchHealth = async () => {
     setHealthLoading(true);
     try {
       const response = await axios.get(`${API_URL}/actuator/health`, { timeout: 8000 });
-      setHealth({
-        status: response.data?.status || 'UP',
-        components: response.data?.components || null
-      });
+      setHealth({ status: response.data?.status || 'UP', components: response.data?.components || null });
     } catch (error) {
-      setHealth({
-        status: error.response?.data?.status || 'DOWN',
-        components: error.response?.data?.components || null
-      });
+      setHealth({ status: error.response?.data?.status || 'DOWN', components: error.response?.data?.components || null });
     } finally {
       setHealthLoading(false);
     }
@@ -47,7 +54,8 @@ function App() {
       setAccounts(response.data);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch accounts:', error);
+      addActivity('Account feed unavailable', error.response?.data?.message || 'The ledger API did not respond.', 'error');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -56,44 +64,17 @@ function App() {
   useEffect(() => {
     fetchAccounts();
     fetchHealth();
-
-    const healthInterval = setInterval(() => {
-      fetchHealth();
-    }, 15000);
-
+    const interval = setInterval(fetchHealth, 15000);
     return () => {
-      clearInterval(healthInterval);
-      if (notificationTimerRef.current) {
-        clearTimeout(notificationTimerRef.current);
-      }
+      clearInterval(interval);
+      if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
     };
   }, []);
 
-  const addActivity = (title, detail, tone = 'info') => {
-    if (notificationTimerRef.current) {
-      clearTimeout(notificationTimerRef.current);
-    }
-    setNotification({ title, detail, tone });
-    notificationTimerRef.current = setTimeout(() => {
-      setNotification(null);
-    }, 4500);
-  };
-
-  const dismissNotification = () => {
-    if (notificationTimerRef.current) {
-      clearTimeout(notificationTimerRef.current);
-    }
-    setNotification(null);
-  };
-
   const loadHistory = async (accountId) => {
-    if (!accountId) {
-      return;
-    }
-
+    if (!accountId) return;
     setHistoryAccountId(accountId);
     setHistoryLoading(true);
-
     try {
       const response = await axios.get(`${API_URL}/accounts/${accountId}/transactions`);
       setHistoryEntries(response.data);
@@ -107,40 +88,30 @@ function App() {
 
   const formatTimestamp = (timestamp) => {
     const parsed = new Date(timestamp);
-    return Number.isNaN(parsed.getTime()) ? 'Unknown time' : parsed.toLocaleString();
+    return Number.isNaN(parsed.getTime()) ? 'UNKNOWN TIME' : parsed.toLocaleString();
   };
 
-  const selectedHistoryAccount = accounts.find((account) => account.accountId === historyAccountId);
+  const getRequestTone = (request) => {
+    if (request.status === 'sending') return 'request--sending';
+    if (request.status === 'waiting') return 'request--waiting';
+    if (request.status === 200) return 'request--success';
+    if (request.status === 409) return 'request--warning';
+    return 'request--error';
+  };
 
   const runTransferRequest = async (request, idempotencyKey, requestNumber, demoType) => {
     const startedAt = performance.now();
-    setDemoState((currentState) => currentState ? {
-      ...currentState,
-      requests: currentState.requests.map((item) => item.number === requestNumber
-        ? { ...item, status: 'sending' }
-        : item)
-    } : currentState);
-
+    setDemoState((current) => current ? { ...current, requests: current.requests.map((item) => item.number === requestNumber ? { ...item, status: 'sending' } : item) } : current);
     try {
-      const response = await axios.post(`${API_URL}/transfers`, request, {
-        headers: {
-          'Idempotency-Key': idempotencyKey,
-          'Content-Type': 'application/json'
-        }
-      });
-
+      const response = await axios.post(`${API_URL}/transfers`, request, { headers: { 'Idempotency-Key': idempotencyKey, 'Content-Type': 'application/json' } });
       const result = {
         number: requestNumber,
         status: response.status,
         transactionId: response.data?.transactionId,
         duration: Math.round(performance.now() - startedAt),
-        result: response.status === 200 ? (demoType === 'idempotency' ? 'Executed or cached' : 'Committed') : 'Unexpected response'
+        result: response.status === 200 ? (demoType === 'idempotency' ? 'EXECUTED / CACHED' : 'COMMITTED') : 'UNEXPECTED'
       };
-      setDemoState((currentState) => currentState ? {
-        ...currentState,
-        completed: currentState.completed + 1,
-        requests: currentState.requests.map((item) => item.number === requestNumber ? { ...item, ...result } : item)
-      } : currentState);
+      setDemoState((current) => current ? { ...current, completed: current.completed + 1, requests: current.requests.map((item) => item.number === requestNumber ? { ...item, ...result } : item) } : current);
       return result;
     } catch (error) {
       const result = {
@@ -148,533 +119,121 @@ function App() {
         status: error.response?.status || 500,
         message: error.response?.data?.message || error.response?.data || error.message,
         duration: Math.round(performance.now() - startedAt),
-        result: error.response?.status === 409 ? 'Blocked while pending' : 'Rejected'
+        result: error.response?.status === 409 ? 'BLOCKED / PENDING' : 'REJECTED'
       };
-      setDemoState((currentState) => currentState ? {
-        ...currentState,
-        completed: currentState.completed + 1,
-        requests: currentState.requests.map((item) => item.number === requestNumber ? { ...item, ...result } : item)
-      } : currentState);
+      setDemoState((current) => current ? { ...current, completed: current.completed + 1, requests: current.requests.map((item) => item.number === requestNumber ? { ...item, ...result } : item) } : current);
       return result;
     }
   };
 
   const canRunDemo = () => {
     if (!sourceId || !targetId || sourceId === targetId) {
-      addActivity('Demo needs two accounts', 'Choose different source and destination accounts first.', 'error');
+      addActivity('Two accounts required', 'Choose different source and destination accounts first.', 'error');
       return false;
     }
-
     return true;
   };
 
-  const getRequestTone = (request) => {
-    if (request.status === 'sending') return 'text-white';
-    if (request.status === 'waiting') return 'text-slate-500';
-    if (request.status === 200) return 'text-emerald-300';
-    if (request.status === 409) return 'text-amber-300';
-    return 'text-rose-300';
-  };
-
-  const notificationTone = notification?.tone === 'success'
-    ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-    : notification?.tone === 'error'
-      ? 'border-rose-300 bg-rose-50 text-rose-900'
-      : notification?.tone === 'warning'
-        ? 'border-amber-300 bg-amber-50 text-amber-900'
-        : 'border-slate-300 bg-white text-slate-900';
-
-  const runIdempotencyDemo = async () => {
+  const runDemo = async (type) => {
     if (!canRunDemo()) return;
-
     const demoAmount = Number(amount) > 0 ? Number(amount) : 1;
-    const sharedKey = `frontend-demo-${crypto.randomUUID()}`;
-    const request = {
-      fromAccountId: sourceId,
-      toAccountId: targetId,
-      amount: demoAmount,
-      description: 'Frontend idempotency demonstration'
-    };
-
+    const idempotency = type === 'idempotency';
+    const request = { fromAccountId: sourceId, toAccountId: targetId, amount: demoAmount, description: `Frontend ${idempotency ? 'idempotency' : 'concurrency'} demonstration` };
+    const sharedKey = idempotency ? `frontend-demo-${crypto.randomUUID()}` : null;
+    const requests = Array.from({ length: 5 }, (_, index) => ({ number: index + 1, status: 'waiting' }));
     setDemoRunning(true);
-    setDemoState({
-      name: 'Idempotency test',
-      phase: 'Sending five requests with one shared key',
-      completed: 0,
-      before: accounts,
-      after: null,
-      requests: Array.from({ length: 5 }, (_, index) => ({ number: index + 1, status: 'waiting' }))
-    });
-    addActivity('Idempotency demo started', 'Five requests will share one Idempotency-Key.', 'info');
-
-    const results = await Promise.all(
-      Array.from({ length: 5 }, (_, index) => runTransferRequest(request, sharedKey, index + 1, 'idempotency'))
-    );
-    const successfulResults = results.filter((result) => result.status === 200);
-    const conflictResults = results.filter((result) => result.status === 409);
-    const transactionIds = new Set(successfulResults.map((result) => result.transactionId).filter(Boolean));
-
-    const refreshedAccounts = await fetchAccounts();
-    setDemoState((currentState) => currentState ? { ...currentState, phase: 'Verification complete', after: refreshedAccounts } : currentState);
-    if (historyAccountId === sourceId || historyAccountId === targetId) {
-      await loadHistory(historyAccountId);
-    }
-    addActivity(
-      'Idempotency demo finished',
-      `${successfulResults.length} successful response(s), ${conflictResults.length} conflict(s), ${transactionIds.size} transaction ID(s). Money should move once.`,
-      transactionIds.size <= 1 ? 'success' : 'error'
-    );
+    setDemoState({ name: idempotency ? 'IDEMPOTENCY TEST' : 'CONCURRENCY TEST', phase: idempotency ? 'SENDING FIVE REQUESTS / ONE SHARED KEY' : 'SENDING FIVE REQUESTS / UNIQUE KEYS', completed: 0, before: accounts, after: null, requests });
+    addActivity(`${idempotency ? 'Idempotency' : 'Concurrency'} demo started`, idempotency ? 'Five requests will share one Idempotency-Key.' : 'Five unique transfers will compete for the same locks.');
+    const results = await Promise.all(requests.map((_, index) => runTransferRequest(request, sharedKey || `frontend-concurrency-${crypto.randomUUID()}`, index + 1, type)));
+    const successful = results.filter((result) => result.status === 200).length;
+    const refreshed = await fetchAccounts();
+    setDemoState((current) => current ? { ...current, phase: 'VERIFICATION COMPLETE', after: refreshed } : current);
+    if (historyAccountId === sourceId || historyAccountId === targetId) await loadHistory(historyAccountId);
+    addActivity(`${idempotency ? 'Idempotency' : 'Concurrency'} demo finished`, `${successful}/5 requests returned 200. Inspect the ledger for the durable result.`, successful > 0 ? 'success' : 'warning');
     setDemoRunning(false);
   };
 
-  const runConcurrencyDemo = async () => {
-    if (!canRunDemo()) return;
-
-    const demoAmount = Number(amount) > 0 ? Number(amount) : 1;
-    const request = {
-      fromAccountId: sourceId,
-      toAccountId: targetId,
-      amount: demoAmount,
-      description: 'Frontend concurrency demonstration'
-    };
-
-    setDemoRunning(true);
-    setDemoState({
-      name: 'Concurrency test',
-      phase: 'Sending five unique transfers',
-      completed: 0,
-      before: accounts,
-      after: null,
-      requests: Array.from({ length: 5 }, (_, index) => ({ number: index + 1, status: 'waiting' }))
-    });
-    addActivity('Concurrency demo started', 'Five unique transfers will compete for the same account locks.', 'info');
-
-    const results = await Promise.all(
-      Array.from({ length: 5 }, (_, index) => runTransferRequest(request, `frontend-concurrency-${crypto.randomUUID()}`, index + 1, 'concurrency'))
-    );
-    const successfulResults = results.filter((result) => result.status === 200);
-    const rejectedResults = results.length - successfulResults.length;
-
-    const refreshedAccounts = await fetchAccounts();
-    setDemoState((currentState) => currentState ? { ...currentState, phase: 'Verification complete', after: refreshedAccounts } : currentState);
-    if (historyAccountId === sourceId || historyAccountId === targetId) {
-      await loadHistory(historyAccountId);
-    }
-    addActivity(
-      'Concurrency demo finished',
-      `${successfulResults.length}/5 committed and ${rejectedResults} rejected. Refresh the balances to inspect the final state.`,
-      rejectedResults === 0 ? 'success' : 'warning'
-    );
-    setDemoRunning(false);
-  };
-
-  const handleTransfer = async (e) => {
-    e.preventDefault();
+  const handleTransfer = async (event) => {
+    event.preventDefault();
     setSubmitting(true);
     setTransferStatus(null);
-
     const previousAccounts = accounts;
     const transferAmount = Number(amount);
-
     try {
-      const payload = {
-        fromAccountId: sourceId,
-        toAccountId: targetId,
-        amount: transferAmount,
-        description: 'Transfer initiated from Admin Console'
-      };
-
-      setAccounts((currentAccounts) => currentAccounts.map((account) => {
-        if (account.accountId === sourceId) {
-          return { ...account, balance: Number(account.balance) - transferAmount };
-        }
-
-        if (account.accountId === targetId) {
-          return { ...account, balance: Number(account.balance) + transferAmount };
-        }
-
-        return account;
-      }));
-
-      const requestConfig = {
-        headers: {
-          'Idempotency-Key': crypto.randomUUID(),
-          'Content-Type': 'application/json'
-        }
-      };
-
-      const response = await axios.post(`${API_URL}/transfers`, payload, requestConfig);
-
-      setTransferStatus({
-        success: true,
-        message: `Transfer executed successfully. Ref: ${response.data.transactionId || 'OK'}`
-      });
-
+      if (!sourceId || !targetId || sourceId === targetId || transferAmount <= 0) throw new Error('Choose two different accounts and enter an amount greater than zero.');
+      setAccounts((current) => current.map((account) => account.accountId === sourceId ? { ...account, balance: Number(account.balance) - transferAmount } : account.accountId === targetId ? { ...account, balance: Number(account.balance) + transferAmount } : account));
+      const response = await axios.post(`${API_URL}/transfers`, { fromAccountId: sourceId, toAccountId: targetId, amount: transferAmount, description: 'Transfer initiated from Admin Console' }, { headers: { 'Idempotency-Key': crypto.randomUUID(), 'Content-Type': 'application/json' } });
+      setTransferStatus({ success: true, message: `TRANSFER COMMITTED // REF ${response.data.transactionId || 'OK'}` });
       setAmount('');
       await fetchAccounts();
-      if (historyAccountId === sourceId || historyAccountId === targetId) {
-        await loadHistory(historyAccountId);
-      }
+      if (historyAccountId === sourceId || historyAccountId === targetId) await loadHistory(historyAccountId);
     } catch (error) {
-      setTransferStatus({
-        success: false,
-        message: error.response?.data?.message || error.response?.data || error.message || 'Transfer failed'
-      });
+      setTransferStatus({ success: false, message: error.response?.data?.message || error.response?.data || error.message || 'TRANSFER FAILED' });
       setAccounts(previousAccounts);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const selectedHistoryAccount = accounts.find((account) => account.accountId === historyAccountId);
+  const totalBalance = accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0);
+  const healthLabel = healthLoading ? 'CHECKING' : health.status === 'UP' ? 'SYSTEM ONLINE' : health.components?.db?.status === 'UP' ? 'DB ONLINE / REDIS OFFLINE' : 'SYSTEM OFFLINE';
+
   return (
-    <div className="min-h-screen bg-stone-100 text-slate-700 p-6 md:p-10">
-      <div className="mx-auto max-w-6xl">
-        {/* Service warm-up notice */}
-        <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-200 font-bold text-amber-900 text-[11px]">
-              i
-            </span>
-            <p className="leading-relaxed">
-              <strong className="font-semibold">Notice:</strong> The backend services may take between 20 seconds and 1 minute to spin up when starting from an idle state. Subsequent transactions will process instantly.
-            </p>
+    <main className="app-shell">
+      {notification && <div className={`toast toast--${notification.tone}`} role="status"><div><strong>{notification.title}</strong><span>{notification.detail}</span></div><button type="button" onClick={() => setNotification(null)} aria-label="Close notification">×</button></div>}
+
+      <div className="topline"><span>LEDGER-BANK / CORE OPERATIONS</span><span>ENV: PRODUCTION SIMULATION</span><span>UTC // 2026-11-08</span></div>
+      <header className="masthead">
+        <div><p className="eyebrow">ADMIN CONSOLE / CONTROL SURFACE</p><h1>LEDGER<span>-</span>BANK</h1></div>
+        <button type="button" className={`health-button ${health.status === 'UP' ? 'health-button--up' : ''}`} onClick={fetchHealth} disabled={healthLoading} title="Refresh system health"><StatusMark status={health.status} />{healthLabel}<b>↻</b></button>
+      </header>
+
+      <section className="notice"><span className="notice-code">INFO</span><span>BACKEND WARM-UP MAY TAKE 20–60 SECONDS AFTER IDLE. SUBSEQUENT TRANSACTIONS PROCESS IN REAL TIME.</span></section>
+
+      <div className="workspace-grid">
+        <section className="panel accounts-panel">
+          <div className="panel-heading"><div><span className="panel-index">01</span><div><h2>ACCOUNTS</h2><p className="panel-subtitle">{loading ? 'LOADING...' : `${accounts.length} LIVE ACCOUNTS / ${money(totalBalance)} TOTAL`}</p></div></div><span className="panel-meta">BALANCES</span></div>
+          <div className="account-list">
+            {loading ? <div className="empty-state">FETCHING ACCOUNT REGISTER...</div> : accounts.length === 0 ? <div className="empty-state">NO ACCOUNTS RETURNED BY API.</div> : accounts.map((account) => (
+              <article className={`account-row ${historyAccountId === account.accountId ? 'account-row--selected' : ''}`} key={account.accountId}>
+                <div className="account-number"><span>ACCT</span><strong>{account.accountNumber || shortId(account.accountId)}</strong></div>
+                <div className="account-owner"><strong>{account.holderName}</strong><span>{shortId(account.accountId)}</span></div>
+                <div className="account-balance"><span>AVAILABLE</span><strong>{money(account.balance)}</strong></div>
+                <button type="button" className="text-button" onClick={() => loadHistory(account.accountId)}>VIEW HISTORY →</button>
+              </article>
+            ))}
           </div>
-        </div>
+        </section>
 
-        {notification && (
-          <div
-            className={`fixed right-4 top-4 z-50 flex items-start justify-between gap-3 w-[min(24rem,calc(100vw-2rem))] rounded-xl border px-4 py-3 shadow-lg transition-all duration-200 ${notificationTone}`}
-            role="status"
-            aria-live="polite"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">{notification.title}</p>
-              <p className="mt-1 text-xs leading-5 opacity-80">{notification.detail}</p>
-            </div>
-            <button
-              type="button"
-              onClick={dismissNotification}
-              className="shrink-0 rounded p-1 text-xs opacity-60 hover:opacity-100 transition"
-              aria-label="Close notification"
-            >
-              ✕
-            </button>
+        <section className="panel transfer-panel">
+          <div className="panel-heading"><div><span className="panel-index">02</span><div><h2>MAKE A TRANSFER</h2><p className="panel-subtitle">ATOMIC LEDGER WRITE</p></div></div><span className="panel-meta">SECURE</span></div>
+          <form onSubmit={handleTransfer} className="terminal-form">
+            <label>FROM / SENDER<select value={sourceId} onChange={(event) => setSourceId(event.target.value)} required><option value="">CHOOSE SENDER</option>{accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.holderName} / {account.accountNumber || shortId(account.accountId)}</option>)}</select></label>
+            <label>TO / RECIPIENT<select value={targetId} onChange={(event) => setTargetId(event.target.value)} required><option value="">CHOOSE RECIPIENT</option>{accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.holderName} / {account.accountNumber || shortId(account.accountId)}</option>)}</select></label>
+            <label>HOW MUCH (USD)<input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" required /></label>
+            <button type="submit" className="primary-button" disabled={submitting}>{submitting ? 'PROCESSING...' : 'SEND MONEY →'}</button>
+          </form>
+          {transferStatus && <div className={`result-box ${transferStatus.success ? 'result-box--success' : 'result-box--error'}`}>{transferStatus.message}</div>}
+          <div className="terminal-foot">IDEMPOTENCY KEY: AUTO-GENERATED / LOCK ORDER: DETERMINISTIC / AUDIT: ENABLED</div>
+        </section>
+
+        <section className="panel history-panel">
+          <div className="panel-heading"><div><span className="panel-index">03</span><div><h2>TRANSACTION HISTORY</h2><p className="panel-subtitle">IMMUTABLE LEDGER ENTRIES</p></div></div><div className="panel-actions">{historyAccountId && <button type="button" className="text-button" onClick={() => loadHistory(historyAccountId)} disabled={historyLoading}>REFRESH ↻</button>}<span className="panel-meta">{historyEntries.length} ENTRIES</span></div></div>
+          <div className="history-caption">{selectedHistoryAccount ? `SHOWING TRANSACTIONS FOR ${selectedHistoryAccount.holderName} / ${selectedHistoryAccount.accountNumber || shortId(selectedHistoryAccount.accountId)}` : 'CLICK “VIEW HISTORY” ON ANY ACCOUNT TO SEE ITS TRANSACTIONS.'}</div>
+          <div className="history-list">
+            {!historyAccountId ? <div className="empty-state">NO ACCOUNT SELECTED.</div> : historyLoading ? <div className="empty-state">READING LEDGER...</div> : historyEntries.length === 0 ? <div className="empty-state">NO LEDGER ENTRIES EXIST FOR THIS ACCOUNT.</div> : historyEntries.map((entry) => <div className="ledger-row" key={entry.ledgerEntryId || `${entry.transactionId}-${entry.type}-${entry.amount}`}><span className={`ledger-type ${entry.type === 'CREDIT' ? 'ledger-type--credit' : 'ledger-type--debit'}`}>{entry.type}</span><div><strong>{entry.description || 'ACCOUNT TRANSACTION'}</strong><span>{formatTimestamp(entry.timestamp)} / TX {shortId(entry.transactionId)}</span></div><b className={entry.type === 'CREDIT' ? 'amount-credit' : 'amount-debit'}>{entry.type === 'CREDIT' ? '+' : '-'}{money(Math.abs(Number(entry.amount)))}</b></div>)}
           </div>
-        )}
+        </section>
 
-        <header className="mb-8 flex items-end justify-between gap-4 border-b border-slate-200 pb-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">Admin Console</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-900">Ledger-bank</h1>
-          </div>
-          <button
-            type="button"
-            onClick={fetchHealth}
-            disabled={healthLoading}
-            title={
-              health.components
-                ? Object.entries(health.components)
-                  .map(([key, val]) => `${key}: ${val.status}`)
-                  .join(' | ')
-                : 'Click to refresh health check'
-            }
-            className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition ${health.status === 'UP'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                : health.components?.db?.status === 'UP'
-                  ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                  : health.status === 'DOWN'
-                    ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
-                    : 'border-slate-200 bg-slate-50 text-slate-500'
-              } disabled:opacity-60`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${health.status === 'UP'
-                  ? 'bg-emerald-500'
-                  : health.components?.db?.status === 'UP'
-                    ? 'bg-amber-500'
-                    : health.status === 'DOWN'
-                      ? 'bg-rose-500'
-                      : 'bg-slate-400 animate-pulse'
-                }`}
-            />
-            {healthLoading
-              ? 'Checking...'
-              : health.status === 'UP'
-                ? 'System online'
-                : health.components?.db?.status === 'UP'
-                  ? 'DB online (Redis offline)'
-                  : health.status === 'DOWN'
-                    ? 'System offline'
-                    : 'Checking system...'}
-          </button>
-        </header>
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Accounts</h2>
-              <span className="text-xs text-slate-500">Live balances</span>
-            </div>
-
-            {loading ? (
-              <p className="text-sm text-slate-500">Loading accounts...</p>
-            ) : (
-              <div className="space-y-3">
-                {accounts.map((acc) => (
-                  <div
-                    key={acc.accountId}
-                    className={`flex items-center justify-between gap-3 rounded-xl border p-3 ${historyAccountId === acc.accountId
-                        ? 'border-slate-400 bg-white'
-                        : 'border-slate-200 bg-slate-50'
-                      }`}
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{acc.holderName}</p>
-                      <p className="mt-1 text-xs text-slate-500">{acc.accountNumber}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Balance</p>
-                      <p className="mt-1 text-lg font-semibold text-slate-900">${Number(acc.balance).toFixed(2)}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => loadHistory(acc.accountId)}
-                      className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${historyAccountId === acc.accountId
-                          ? 'border-slate-900 bg-slate-900 text-white'
-                          : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900'
-                        }`}
-                    >
-                      History
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-5 text-lg font-semibold text-slate-900">Transfer funds</h2>
-
-            <form onSubmit={handleTransfer} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium uppercase tracking-[0.18em] text-slate-500">From account</label>
-                <select
-                  required
-                  value={sourceId}
-                  onChange={(e) => setSourceId(e.target.value)}
-                  disabled={loading || accounts.length === 0}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <option value="">Select source account</option>
-                  {accounts.map((account) => (
-                    <option key={account.accountId} value={account.accountId}>
-                      {account.accountNumber} - {account.holderName} (${Number(account.balance).toFixed(2)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium uppercase tracking-[0.18em] text-slate-500">To account</label>
-                <select
-                  required
-                  value={targetId}
-                  onChange={(e) => setTargetId(e.target.value)}
-                  disabled={loading || accounts.length === 0}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <option value="">Select destination account</option>
-                  {accounts.map((account) => (
-                    <option key={account.accountId} value={account.accountId}>
-                      {account.accountNumber} - {account.holderName} (${Number(account.balance).toFixed(2)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting ? 'Processing transfer...' : 'Submit transfer'}
-              </button>
-            </form>
-
-            {transferStatus && (
-              <div className={`mt-4 rounded-xl border px-3 py-2.5 text-sm ${transferStatus.success
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-rose-200 bg-rose-50 text-rose-700'
-                }`}>
-                {transferStatus.message}
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Transaction history</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {selectedHistoryAccount
-                    ? `${selectedHistoryAccount.holderName} · ${selectedHistoryAccount.accountNumber}`
-                    : 'Choose History on an account to inspect its ledger.'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                {historyAccountId && (
-                  <button
-                    type="button"
-                    onClick={() => loadHistory(historyAccountId)}
-                    disabled={historyLoading}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-900 disabled:opacity-60"
-                  >
-                    Refresh
-                  </button>
-                )}
-                <span className="shrink-0 text-xs uppercase tracking-[0.16em] text-slate-400">
-                  {historyEntries.length} entries
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 h-[15rem] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50">
-              {!historyAccountId ? (
-                <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-500">
-                  Select History on an account to inspect its ledger.
-                </div>
-              ) : historyLoading ? (
-                <div className="flex h-full items-center justify-center text-sm text-slate-500">Loading ledger...</div>
-              ) : historyEntries.length === 0 ? (
-                <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-500">
-                  No ledger entries exist for this account yet.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-200">
-                  {historyEntries.map((entry) => (
-                    <div key={entry.ledgerEntryId || `${entry.transactionId}-${entry.type}-${entry.amount}`} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 text-sm">
-                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${entry.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                        }`}>
-                        {entry.type}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-slate-800">{entry.description || 'Account transaction'}</p>
-                        <p className="mt-1 truncate text-xs text-slate-500">
-                          {formatTimestamp(entry.timestamp)} · {entry.transactionId}
-                        </p>
-                      </div>
-                      <span className={`whitespace-nowrap font-semibold ${entry.type === 'CREDIT' ? 'text-emerald-700' : 'text-rose-700'
-                        }`}>
-                        {entry.type === 'CREDIT' ? '+' : '-'}${Math.abs(Number(entry.amount)).toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-
-          <aside className="order-first min-h-[28rem] rounded-2xl border border-slate-200 bg-slate-900 p-5 text-slate-200 shadow-sm xl:col-span-2">
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">Backend lab</p>
-            <h2 className="mt-3 text-xl font-semibold text-white">See the safeguards work</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">Run small real-request demos against Redis, PostgreSQL, and the transfer locks.</p>
-
-            <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={runIdempotencyDemo}
-                disabled={demoRunning || loading}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-left text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Duplicate request demo
-                <span className="mt-1 block text-xs font-normal text-slate-400">5 requests, 1 shared key</span>
-              </button>
-              <button
-                type="button"
-                onClick={runConcurrencyDemo}
-                disabled={demoRunning || loading}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-left text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Locking demo
-                <span className="mt-1 block text-xs font-normal text-slate-400">5 requests, unique keys</span>
-              </button>
-            </div>
-
-            <div className="mt-5 h-[18rem] overflow-y-auto border-t border-slate-800 pt-4">
-              {demoState ? (
-                <>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-white">{demoState.name}</p>
-                      <p className="mt-1 text-xs text-slate-400">{demoState.phase}</p>
-                    </div>
-                    <span className="shrink-0 text-xs text-slate-400">{demoState.completed}/5</span>
-                  </div>
-
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                    <div
-                      className="h-full rounded-full bg-emerald-400 transition-all duration-300"
-                      style={{ width: `${(demoState.completed / 5) * 100}%` }}
-                    />
-                  </div>
-
-                  <div className="mt-3 space-y-1.5">
-                    {demoState.requests.map((request) => (
-                      <div key={request.number} className="flex items-center justify-between rounded-lg bg-slate-800 px-3 py-2 text-xs">
-                        <span className="text-slate-300">Request {request.number}</span>
-                        <span className={getRequestTone(request)}>
-                          {request.status === 'waiting' && 'Waiting'}
-                          {request.status === 'sending' && 'Sending...'}
-                          {request.status === 200 && `${request.status} ${request.result}`}
-                          {request.status === 409 && `${request.status} ${request.result}`}
-                          {request.status !== 'waiting' && request.status !== 'sending' && request.status !== 200 && request.status !== 409 && `${request.status} ${request.result}`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {demoState.after && (
-                    <div className="mt-3 rounded-lg bg-slate-800 px-3 py-2 text-xs">
-                      <p className="uppercase tracking-[0.16em] text-slate-500">Balance verification</p>
-                      {demoState.after.filter((account) => [sourceId, targetId].includes(account.accountId)).map((account) => {
-                        const before = demoState.before.find((item) => item.accountId === account.accountId);
-                        const change = Number(account.balance) - Number(before?.balance || 0);
-                        return (
-                          <div key={account.accountId} className="mt-2 flex justify-between gap-2 text-slate-300">
-                            <span>{account.accountNumber}</span>
-                            <span className={change < 0 ? 'text-rose-300' : 'text-emerald-300'}>
-                              ${Number(account.balance).toFixed(2)} ({change >= 0 ? '+' : ''}{change.toFixed(2)})
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-700 px-6 text-center">
-                  <p className="max-w-sm text-sm leading-6 text-slate-500">Choose two different accounts, then run a demo to see each request and the verified balance movement here.</p>
-                </div>
-              )}
-            </div>
-          </aside>
-        </div>
+        <aside className="panel lab-panel">
+          <div className="panel-heading"><div><span className="panel-index">04</span><div><h2>TEST SAFEGUARDS</h2><p className="panel-subtitle">OPTIONAL TOOLS FOR IDEMPOTENCY AND LOCKING</p></div></div><span className="panel-meta">OPTIONAL</span></div>
+          <div className="lab-actions"><button type="button" className="lab-button" onClick={() => runDemo('idempotency')} disabled={demoRunning || loading}>DUPLICATE REQUEST DEMO<span>5 REQUESTS / 1 SHARED KEY</span></button><button type="button" className="lab-button" onClick={() => runDemo('concurrency')} disabled={demoRunning || loading}>LOCKING DEMO<span>5 REQUESTS / UNIQUE KEYS</span></button></div>
+          {demoState ? <div className="demo-output"><div className="demo-header"><div><strong>{demoState.name}</strong><span>{demoState.phase}</span></div><b>{demoState.completed}/5</b></div><div className="progress-track"><span style={{ width: `${(demoState.completed / 5) * 100}%` }} /></div>{demoState.requests.map((request) => <div className="request-row" key={request.number}><span>REQUEST {String(request.number).padStart(2, '0')}</span><strong className={getRequestTone(request)}>{request.status === 'waiting' ? 'WAITING' : request.status === 'sending' ? 'SENDING...' : `${request.status} ${request.result}`} {request.duration ? `// ${request.duration}MS` : ''}</strong></div>)}</div> : <div className="demo-placeholder">AWAITING TEST VECTOR<span>RUN A DEMO TO STREAM REQUEST-LEVEL RESULTS.</span></div>}
+        </aside>
       </div>
-    </div>
+      <footer className="footer-line"><span>LEDGER-BANK / ADMIN CONSOLE</span><span>POSTGRESQL + REDIS / SPRING BOOT API</span><span>BUILD 2026.11</span></footer>
+    </main>
   );
 }
 
